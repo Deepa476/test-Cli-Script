@@ -459,19 +459,20 @@ pipeline {
                             echo "Preparing to execute MASSTCLI..."
                             echo ""
 
-                            # Simple find without -executable flag
+                            # Find the MASSTCLI executable
                             masst_exe=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" 2>/dev/null | grep -v ".zip" | head -n 1)
 
                             if [ -z "${masst_exe}" ]; then
                                 echo "ERROR: No MASSTCLI executable found!"
-                                echo "Searching in ${MASST_DIR}..."
-                                find "${MASST_DIR}" -type f -name "MASSTCLI*" 2>/dev/null || true
+                                echo "Contents of ${MASST_DIR}:"
+                                find "${MASST_DIR}" -type f 2>/dev/null | head -20
                                 exit 1
                             fi
 
-                            # Make executable
+                            # Make it executable
                             chmod +x "${masst_exe}"
 
+                            # Validate input files exist
                             if [ ! -f "${WORKSPACE}/MyApp.aab" ]; then
                                 echo "ERROR: Input file MyApp.aab not found!"
                                 exit 1
@@ -482,44 +483,47 @@ pipeline {
                                 exit 1
                             fi
 
-                            # Define output file
+                            # Create output directory if it doesn't exist
+                            mkdir -p "${WORKSPACE}/${ARTIFACTS_DIR}"
+
+                            # Define output file path
                             OUTPUT_FILE="${WORKSPACE}/${ARTIFACTS_DIR}/MyApp_obfuscated.aab"
 
                             echo "════════════════════════════════════════════════════"
                             echo "Execution Details:"
                             echo "════════════════════════════════════════════════════"
                             echo "Executable: $(basename ${masst_exe})"
-                            echo "Path: ${masst_exe}"
-                            echo "Input: ${WORKSPACE}/MyApp.aab"
-                            echo "Config: ${WORKSPACE}/${CONFIG_FILE}"
-                            echo "Output: ${OUTPUT_FILE}"
+                            echo "Full Path: ${masst_exe}"
+                            echo "Input File: ${WORKSPACE}/MyApp.aab"
+                            echo "Config File: ${WORKSPACE}/${CONFIG_FILE}"
+                            echo "Output File: ${OUTPUT_FILE}"
                             echo "════════════════════════════════════════════════════"
                             echo ""
 
-                            echo "Executing MASSTCLI..."
-                            "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}" -output "${OUTPUT_FILE}"
-
-                            exit_code=$?
+                            echo "Starting MASSTCLI execution..."
                             echo ""
 
-                            if [ ${exit_code} -ne 0 ]; then
-                                echo "ERROR: MASSTCLI execution failed with exit code: ${exit_code}"
+                            # Execute MASSTCLI
+                            if "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}" -output "${OUTPUT_FILE}"; then
+                                echo ""
+                                echo "✅ MASSTCLI execution completed successfully"
+
+                                # Verify output file was created
+                                if [ -f "${OUTPUT_FILE}" ]; then
+                                    output_size=$(stat -f%z "${OUTPUT_FILE}" 2>/dev/null || stat -c%s "${OUTPUT_FILE}" 2>/dev/null || echo "N/A")
+                                    echo "✅ Output file created: $(basename ${OUTPUT_FILE})"
+                                    echo "   Size: ${output_size} bytes"
+                                else
+                                    echo "⚠ Warning: Output file not found at expected location"
+                                    echo "Checking for any generated files..."
+                                    find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f 2>/dev/null || echo "No files found in output directory"
+                                fi
+                            else
+                                exit_code=$?
+                                echo ""
+                                echo "❌ MASSTCLI execution failed with exit code: ${exit_code}"
                                 exit ${exit_code}
                             fi
-
-                            # Verify output file
-                            if [ ! -f "${OUTPUT_FILE}" ]; then
-                                echo "WARNING: Expected output file not found at ${OUTPUT_FILE}"
-                                echo "Checking workspace for generated files..."
-                                find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f 2>/dev/null | head -10 || true
-                            else
-                                output_size=$(stat -f%z "${OUTPUT_FILE}" 2>/dev/null || stat -c%s "${OUTPUT_FILE}" 2>/dev/null || echo "N/A")
-                                echo "✅ Output file generated: $(basename ${OUTPUT_FILE})"
-                                echo "Size: ${output_size} bytes"
-                            fi
-
-                            echo ""
-                            echo "✅ MASSTCLI execution completed successfully"
                         '''
                     } else {
                         bat '''
@@ -528,11 +532,11 @@ pipeline {
                             echo Preparing to execute MASSTCLI...
                             echo.
 
-                            set MASST_EXE=
+                            REM Find MASSTCLI executable
+                            set "MASST_EXE="
                             for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
-                                set MASST_EXE=%%%%f
-                                set MASST_PATH=%%%%~dpf
-                                goto found_exe
+                                set "MASST_EXE=%%%%f"
+                                goto :found_exe
                             )
 
                             echo ERROR: No MASSTCLI executable found in %MASST_DIR%!
@@ -552,43 +556,47 @@ pipeline {
                                 exit /b 1
                             )
 
+                            REM Create output directory
+                            if not exist "%WORKSPACE%\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\%ARTIFACTS_DIR%"
+
                             set "OUTPUT_FILE=%WORKSPACE%\%ARTIFACTS_DIR%\MyApp_obfuscated.aab"
 
                             echo ════════════════════════════════════════════════════
                             echo Execution Details:
                             echo ════════════════════════════════════════════════════
                             echo Executable: !MASST_EXE!
-                            echo Path: !MASST_PATH!
-                            echo Input: %WORKSPACE%\MyApp.aab
-                            echo Config: %WORKSPACE%\%CONFIG_FILE%
-                            echo Output: !OUTPUT_FILE!
+                            echo Input File: %WORKSPACE%\MyApp.aab
+                            echo Config File: %WORKSPACE%\%CONFIG_FILE%
+                            echo Output File: !OUTPUT_FILE!
                             echo ════════════════════════════════════════════════════
                             echo.
 
-                            echo Executing MASSTCLI...
+                            echo Starting MASSTCLI execution...
+                            echo.
+
                             "!MASST_EXE!" -input "%WORKSPACE%\MyApp.aab" -config "%WORKSPACE%\%CONFIG_FILE%" -output "!OUTPUT_FILE!"
 
                             if errorlevel 1 (
-                                echo ERROR: MASSTCLI execution failed with exit code: !ERRORLEVEL!
+                                echo.
+                                echo ❌ MASSTCLI execution failed with error code: !ERRORLEVEL!
                                 endlocal
                                 exit /b 1
                             )
 
                             echo.
+                            echo ✅ MASSTCLI execution completed successfully
 
                             if exist "!OUTPUT_FILE!" (
                                 for %%%%F in ("!OUTPUT_FILE!") do (
-                                    echo ✅ Output file generated: %%%%~nxF
-                                    echo Size: %%%%~zF bytes
+                                    echo ✅ Output file created: %%%%~nxF
+                                    echo    Size: %%%%~zF bytes
                                 )
                             ) else (
-                                echo WARNING: Expected output file not found at !OUTPUT_FILE!
-                                echo Checking %ARTIFACTS_DIR% for generated files...
-                                dir "%WORKSPACE%\%ARTIFACTS_DIR%" 2>nul || echo No files found
+                                echo ⚠ Warning: Output file not found at expected location
+                                echo Checking for any generated files...
+                                dir "%WORKSPACE%\%ARTIFACTS_DIR%" 2>nul || echo No files found in output directory
                             )
 
-                            echo.
-                            echo ✅ MASSTCLI execution completed successfully
                             endlocal
                         '''
                     }
