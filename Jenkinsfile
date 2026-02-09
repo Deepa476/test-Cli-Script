@@ -449,118 +449,125 @@ pipeline {
             }
         }
 
-        stage('Run MASSTCLI') {
-            steps {
-                echo '═══════════════════════════════════════════'
-                echo '  STAGE 4: Run MASSTCLI'
-                echo '═══════════════════════════════════════════'
-                script {
-                    if (isUnix()) {
-                        sh '''
-                            set -e
+       stage('Run MASSTCLI') {
+           steps {
+               echo '═══════════════════════════════════════════'
+               echo '  STAGE 4: Run MASSTCLI'
+               echo '═══════════════════════════════════════════'
+               script {
+                   if (isUnix()) {
+                       sh '''
+                           set -e
 
-                            echo "Preparing to execute MASSTCLI..."
-                            echo ""
+                           echo "Preparing to execute MASSTCLI..."
+                           echo ""
 
-                            masst_exe=$(find "${MASST_DIR}" -maxdepth 1 \\( -name "MASSTCLI*" -o -name "masstcli*" \\) -type f -executable 2>/dev/null | head -n 1)
+                           # Search recursively for the executable
+                           masst_exe=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" \\( -executable -o -name "*darwin-amd64" -o -name "*darwin*" \\) 2>/dev/null | grep -v ".zip" | head -n 1)
 
-                            if [ -z "${masst_exe}" ]; then
-                                echo "ERROR: No MASSTCLI executable found!"
-                                exit 1
-                            fi
+                           if [ -z "${masst_exe}" ]; then
+                               echo "ERROR: No MASSTCLI executable found!"
+                               echo "Searching in ${MASST_DIR}..."
+                               find "${MASST_DIR}" -type f -name "MASSTCLI*" 2>/dev/null || true
+                               exit 1
+                           fi
 
-                            if [ ! -f "${WORKSPACE}/MyApp.aab" ]; then
-                                echo "ERROR: Input file MyApp.aab not found!"
-                                exit 1
-                            fi
+                           # Make executable if not already
+                           chmod +x "${masst_exe}"
 
-                            if [ ! -f "${WORKSPACE}/${CONFIG_FILE}" ]; then
-                                echo "ERROR: Configuration file ${CONFIG_FILE} not found!"
-                                exit 1
-                            fi
+                           if [ ! -f "${WORKSPACE}/MyApp.aab" ]; then
+                               echo "ERROR: Input file MyApp.aab not found!"
+                               exit 1
+                           fi
 
-                            echo "════════════════════════════════════════════════════"
-                            echo "Execution Details:"
-                            echo "════════════════════════════════════════════════════"
-                            echo "Executable: $(basename ${masst_exe})"
-                            echo "Path: ${masst_exe}"
-                            echo "Input: ${WORKSPACE}/MyApp.aab"
-                            echo "Config: ${WORKSPACE}/${CONFIG_FILE}"
-                            echo "════════════════════════════════════════════════════"
-                            echo ""
+                           if [ ! -f "${WORKSPACE}/${CONFIG_FILE}" ]; then
+                               echo "ERROR: Configuration file ${CONFIG_FILE} not found!"
+                               exit 1
+                           fi
 
-                            echo "Executing MASSTCLI..."
-                            "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}"
+                           echo "════════════════════════════════════════════════════"
+                           echo "Execution Details:"
+                           echo "════════════════════════════════════════════════════"
+                           echo "Executable: $(basename ${masst_exe})"
+                           echo "Path: ${masst_exe}"
+                           echo "Input: ${WORKSPACE}/MyApp.aab"
+                           echo "Config: ${WORKSPACE}/${CONFIG_FILE}"
+                           echo "════════════════════════════════════════════════════"
+                           echo ""
 
-                            exit_code=$?
-                            echo ""
+                           echo "Executing MASSTCLI..."
+                           "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}"
 
-                            if [ ${exit_code} -ne 0 ]; then
-                                echo "ERROR: MASSTCLI execution failed with exit code: ${exit_code}"
-                                exit ${exit_code}
-                            fi
+                           exit_code=$?
+                           echo ""
 
-                            echo "✅ MASSTCLI execution completed successfully"
-                        '''
-                    } else {
-                        bat '''
-                            setlocal enabledelayedexpansion
+                           if [ ${exit_code} -ne 0 ]; then
+                               echo "ERROR: MASSTCLI execution failed with exit code: ${exit_code}"
+                               exit ${exit_code}
+                           fi
 
-                            echo Preparing to execute MASSTCLI...
-                            echo.
+                           echo "✅ MASSTCLI execution completed successfully"
+                       '''
+                   } else {
+                       bat '''
+                           setlocal enabledelayedexpansion
 
-                            set MASST_EXE=
-                            for %%f in ("%MASST_DIR%\\MASSTCLI*.exe") do (
-                                set MASST_EXE=%%~nxf
-                            )
+                           echo Preparing to execute MASSTCLI...
+                           echo.
 
-                            if not defined MASST_EXE (
-                                echo ERROR: No MASSTCLI executable found!
-                                endlocal
-                                exit /b 1
-                            )
+                           set MASST_EXE=
+                           for /r "%MASST_DIR%" %%f in (MASSTCLI*.exe) do (
+                               set MASST_EXE=%%~nxf
+                               set MASST_PATH=%%~dpnxf
+                           )
 
-                            if not exist "%WORKSPACE%\\MyApp.aab" (
-                                echo ERROR: Input file MyApp.aab not found!
-                                endlocal
-                                exit /b 1
-                            )
+                           if not defined MASST_EXE (
+                               echo ERROR: No MASSTCLI executable found!
+                               endlocal
+                               exit /b 1
+                           )
 
-                            if not exist "%WORKSPACE%\\%CONFIG_FILE%" (
-                                echo ERROR: Configuration file %CONFIG_FILE% not found!
-                                endlocal
-                                exit /b 1
-                            )
+                           if not exist "%WORKSPACE%\\MyApp.aab" (
+                               echo ERROR: Input file MyApp.aab not found!
+                               endlocal
+                               exit /b 1
+                           )
 
-                            echo ════════════════════════════════════════════════════
-                            echo Execution Details:
-                            echo ════════════════════════════════════════════════════
-                            echo Executable: !MASST_EXE!
-                            echo Path: %MASST_DIR%\\!MASST_EXE!
-                            echo Input: %WORKSPACE%\\MyApp.aab
-                            echo Config: %WORKSPACE%\\%CONFIG_FILE%
-                            echo ════════════════════════════════════════════════════
-                            echo.
+                           if not exist "%WORKSPACE%\\%CONFIG_FILE%" (
+                               echo ERROR: Configuration file %CONFIG_FILE% not found!
+                               endlocal
+                               exit /b 1
+                           )
 
-                            echo Executing MASSTCLI...
-                            "%MASST_DIR%\\!MASST_EXE!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%"
+                           echo ════════════════════════════════════════════════════
+                           echo Execution Details:
+                           echo ════════════════════════════════════════════════════
+                           echo Executable: !MASST_EXE!
+                           echo Path: !MASST_PATH!
+                           echo Input: %WORKSPACE%\\MyApp.aab
+                           echo Config: %WORKSPACE%\\%CONFIG_FILE%
+                           echo ════════════════════════════════════════════════════
+                           echo.
 
-                            if errorlevel 1 (
-                                echo.
-                                echo ERROR: MASSTCLI execution failed with error code: %ERRORLEVEL%
-                                endlocal
-                                exit /b 1
-                            )
+                           echo Executing MASSTCLI...
+                           "!MASST_PATH!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%"
 
-                            echo.
-                            echo ✅ MASSTCLI execution completed
-                            endlocal
-                        '''
-                    }
-                }
-            }
-        }
-    }
+                           if errorlevel 1 (
+                               echo.
+                               echo ERROR: MASSTCLI execution failed with error code: %ERRORLEVEL%
+                               endlocal
+                               exit /b 1
+                           )
+
+                           echo.
+                           echo ✅ MASSTCLI execution completed
+                           endlocal
+                       '''
+                   }
+               }
+           }
+       }
+
 
     post {
         success {
