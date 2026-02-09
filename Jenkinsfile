@@ -470,7 +470,6 @@ pipeline {
                                 exit 1
                             fi
 
-                            # Make it executable
                             chmod +x "${masst_exe}"
 
                             # Validate input files exist
@@ -484,11 +483,8 @@ pipeline {
                                 exit 1
                             fi
 
-                            # Create output directory if it doesn't exist
+                            # Ensure output directory exists
                             mkdir -p "${WORKSPACE}/${ARTIFACTS_DIR}"
-
-                            # Define output file path
-                            OUTPUT_FILE="${WORKSPACE}/${ARTIFACTS_DIR}/MyApp_obfuscated.aab"
 
                             echo "════════════════════════════════════════════════════"
                             echo "Execution Details:"
@@ -497,26 +493,32 @@ pipeline {
                             echo "Full Path: ${masst_exe}"
                             echo "Input File: ${WORKSPACE}/MyApp.aab"
                             echo "Config File: ${WORKSPACE}/${CONFIG_FILE}"
-                            echo "Output File: ${OUTPUT_FILE}"
+                            echo "Output Directory: ${WORKSPACE}/${ARTIFACTS_DIR}"
                             echo "════════════════════════════════════════════════════"
                             echo ""
 
                             echo "Starting MASSTCLI execution..."
                             echo ""
 
-                            # Execute MASSTCLI
-                            if "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}" -output "${OUTPUT_FILE}"; then
+                            # Execute MASSTCLI without -output (CLI writes outputs itself)
+                            if "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}"; then
                                 echo ""
                                 echo "✅ MASSTCLI execution completed successfully"
 
-                                # Verify output file was created
-                                if [ -f "${OUTPUT_FILE}" ]; then
-                                    output_size=$(stat -f%z "${OUTPUT_FILE}" 2>/dev/null || stat -c%s "${OUTPUT_FILE}" 2>/dev/null || echo "N/A")
-                                    echo "✅ Output file created: $(basename ${OUTPUT_FILE})"
+                                # Try to find generated AAB in artifacts dir first, then workspace
+                                found_file=$(find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f \( -name "*_obfuscated.aab" -o -name "*.aab" \) 2>/dev/null | head -n 1 || true)
+                                if [ -z "${found_file}" ]; then
+                                    found_file=$(find "${WORKSPACE}" -type f \( -name "*_obfuscated.aab" -o -name "*.aab" \) -not -path "${WORKSPACE}/${MASST_ZIP}.zip" 2>/dev/null | head -n 1 || true)
+                                fi
+
+                                if [ -n "${found_file}" ]; then
+                                    output_size=$(stat -f%z "${found_file}" 2>/dev/null || stat -c%s "${found_file}" 2>/dev/null || echo "N/A")
+                                    echo "✅ Output file found: $(basename "${found_file}")"
                                     echo "   Size: ${output_size} bytes"
+                                    echo "   Location: ${found_file}"
                                 else
-                                    echo "⚠ Warning: Output file not found at expected location"
-                                    echo "Checking for any generated files..."
+                                    echo "⚠ Warning: No output AAB located automatically."
+                                    echo "Listing ${WORKSPACE}/${ARTIFACTS_DIR}:"
                                     find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f 2>/dev/null || echo "No files found in output directory"
                                 fi
                             else
@@ -527,6 +529,7 @@ pipeline {
                             fi
                         '''
                     } else {
+                        // Keep existing Windows behavior (or update similarly if needed)
                         bat '''
                             setlocal enabledelayedexpansion
 
@@ -545,6 +548,7 @@ pipeline {
                             exit /b 1
 
                             :found_exe
+
                             if not exist "%WORKSPACE%\\MyApp.aab" (
                                 echo ERROR: Input file MyApp.aab not found!
                                 endlocal
@@ -557,25 +561,12 @@ pipeline {
                                 exit /b 1
                             )
 
-                            REM Create output directory
                             if not exist "%WORKSPACE%\\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\\%ARTIFACTS_DIR%"
-
-                            set "OUTPUT_FILE=%WORKSPACE%\\%ARTIFACTS_DIR%\\MyApp_obfuscated.aab"
-
-                            echo ════════════════════════════════════════════════════
-                            echo Execution Details:
-                            echo ════════════════════════════════════════════════════
-                            echo Executable: !MASST_EXE!
-                            echo Input File: %WORKSPACE%\\MyApp.aab
-                            echo Config File: %WORKSPACE%\\%CONFIG_FILE%
-                            echo Output File: !OUTPUT_FILE!
-                            echo ════════════════════════════════════════════════════
-                            echo.
 
                             echo Starting MASSTCLI execution...
                             echo.
 
-                            "!MASST_EXE!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%" -output "!OUTPUT_FILE!"
+                            "!MASST_EXE!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%"
 
                             if errorlevel 1 (
                                 echo.
@@ -586,17 +577,9 @@ pipeline {
 
                             echo.
                             echo ✅ MASSTCLI execution completed successfully
+                            echo Checking for generated AAB files...
 
-                            if exist "!OUTPUT_FILE!" (
-                                for %%%%F in ("!OUTPUT_FILE!") do (
-                                    echo ✅ Output file created: %%%%~nxF
-                                    echo    Size: %%%%~zF bytes
-                                )
-                            ) else (
-                                echo ⚠ Warning: Output file not found at expected location
-                                echo Checking for any generated files...
-                                dir "%WORKSPACE%\\%ARTIFACTS_DIR%" 2>nul || echo No files found in output directory
-                            )
+                            dir "%WORKSPACE%\\%ARTIFACTS_DIR%\\*_obfuscated.aab" /b 2>nul || dir "%WORKSPACE%\\%ARTIFACTS_DIR%\\*.aab" /b 2>nul || echo No files found in output directory
 
                             endlocal
                         '''
@@ -604,6 +587,7 @@ pipeline {
                 }
             }
         }
+
 
 
         stage('Archive Artifacts') {
