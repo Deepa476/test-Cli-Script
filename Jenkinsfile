@@ -295,39 +295,28 @@ pipeline {
                             echo ""
                             echo "Searching for MASSTCLI executable..."
 
-                            masst_exe=$(find "${MASST_DIR}" -maxdepth 1 \\( -name "MASSTCLI*" -o -name "masstcli*" \\) -type f -executable 2>/dev/null | head -n 1)
+                            # Search recursively without maxdepth limit
+                            masst_exe=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" 2>/dev/null | grep -v ".zip" | head -n 1)
 
                             if [ -z "${masst_exe}" ]; then
-                                echo "WARNING: No executable found, checking for binary files..."
-                                potential_exe=$(find "${MASST_DIR}" -maxdepth 1 \\( -name "MASSTCLI*" -o -name "masstcli*" \\) -type f 2>/dev/null | head -n 1)
-
-                                if [ -n "${potential_exe}" ]; then
-                                    echo "Found potential executable, setting permissions..."
-                                    chmod +x "${potential_exe}"
-                                    masst_exe="${potential_exe}"
-                                else
-                                    echo "ERROR: No MASSTCLI executable found in ${MASST_DIR}!"
-                                    find "${MASST_DIR}" -type f | head -20
-                                    exit 1
-                                fi
+                                echo "ERROR: No MASSTCLI executable found!"
+                                echo "Contents of ${MASST_DIR}:"
+                                find "${MASST_DIR}" -type f -name "MASSTCLI*" 2>/dev/null || true
+                                exit 1
                             fi
+
+                            # Make executable if not already
+                            chmod +x "${masst_exe}"
 
                             masst_exe_name=$(basename "${masst_exe}")
                             echo "Found: ${masst_exe_name}"
-
-                            echo ""
-                            echo "Validating executable..."
-                            if [ ! -x "${masst_exe}" ]; then
-                                echo "ERROR: Executable not accessible!"
-                                exit 1
-                            fi
 
                             echo ""
                             echo "════════════════════════════════════════════════════"
                             echo "✅ MASSTCLI verified successfully"
                             echo "════════════════════════════════════════════════════"
                             echo "Executable: ${masst_exe_name}"
-                            echo "Location: ${MASST_DIR}"
+                            echo "Full Path: ${masst_exe}"
                             echo "Status: Ready for execution"
                             echo "════════════════════════════════════════════════════"
                         '''
@@ -346,33 +335,25 @@ pipeline {
                             echo Searching for MASSTCLI executable...
                             set MASST_EXE=
 
-                            for %%f in ("%MASST_DIR%\\MASSTCLI*.exe") do (
+                            for /r "%MASST_DIR%" %%f in (MASSTCLI*.exe) do (
                                 set MASST_EXE=%%~nxf
-                                echo Found: %%~nxf
+                                set MASST_PATH=%%~dpnxf
+                                goto :found_exe
                             )
 
-                            if not defined MASST_EXE (
-                                echo ERROR: No MASSTCLI executable found in %MASST_DIR%!
-                                echo Contents of extraction directory:
-                                dir /s "%MASST_DIR%"
-                                endlocal
-                                exit /b 1
-                            )
+                            echo ERROR: No MASSTCLI executable found in %MASST_DIR%!
+                            endlocal
+                            exit /b 1
 
-                            echo.
-                            echo Validating executable file...
-                            if not exist "%MASST_DIR%\\!MASST_EXE!" (
-                                echo ERROR: Executable path not accessible!
-                                endlocal
-                                exit /b 1
-                            )
+                            :found_exe
+                            echo ✅ Found: !MASST_EXE!
 
                             echo.
                             echo ════════════════════════════════════════════════════
                             echo ✅ MASSTCLI verified successfully
                             echo ════════════════════════════════════════════════════
                             echo Executable: !MASST_EXE!
-                            echo Location: %MASST_DIR%
+                            echo Full Path: !MASST_PATH!
                             echo Status: Ready for execution
                             echo ════════════════════════════════════════════════════
                             endlocal
