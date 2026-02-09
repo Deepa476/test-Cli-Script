@@ -459,6 +459,7 @@ pipeline {
                             echo "Preparing to execute MASSTCLI..."
                             echo ""
 
+                            # Simple find without -executable flag
                             masst_exe=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" 2>/dev/null | grep -v ".zip" | head -n 1)
 
                             if [ -z "${masst_exe}" ]; then
@@ -468,6 +469,7 @@ pipeline {
                                 exit 1
                             fi
 
+                            # Make executable
                             chmod +x "${masst_exe}"
 
                             if [ ! -f "${WORKSPACE}/MyApp.aab" ]; then
@@ -508,20 +510,12 @@ pipeline {
                             # Verify output file
                             if [ ! -f "${OUTPUT_FILE}" ]; then
                                 echo "WARNING: Expected output file not found at ${OUTPUT_FILE}"
-                                echo ""
-                                echo "Searching for generated files in output directory..."
-                                find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f 2>/dev/null | while read file; do
-                                    echo "✅ Found: $(basename ${file})"
-                                    echo "   Size: $(stat -f%z "${file}" 2>/dev/null || stat -c%s "${file}" 2>/dev/null || echo "N/A") bytes"
-                                done
-
-                                if [ ! -s "${WORKSPACE}/${ARTIFACTS_DIR}"/* ]; then
-                                    echo "WARNING: No output files generated!"
-                                fi
+                                echo "Checking workspace for generated files..."
+                                find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f 2>/dev/null | head -10 || true
                             else
                                 output_size=$(stat -f%z "${OUTPUT_FILE}" 2>/dev/null || stat -c%s "${OUTPUT_FILE}" 2>/dev/null || echo "N/A")
                                 echo "✅ Output file generated: $(basename ${OUTPUT_FILE})"
-                                echo "   Size: ${output_size} bytes"
+                                echo "Size: ${output_size} bytes"
                             fi
 
                             echo ""
@@ -536,47 +530,46 @@ pipeline {
 
                             set MASST_EXE=
                             for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
-                                set MASST_EXE=%%%%~nxf
-                                set MASST_PATH=%%%%~dpnxf
+                                set MASST_EXE=%%%%f
+                                set MASST_PATH=%%%%~dpf
+                                goto found_exe
                             )
 
-                            if not defined MASST_EXE (
-                                echo ERROR: No MASSTCLI executable found!
-                                endlocal
-                                exit /b 1
-                            )
+                            echo ERROR: No MASSTCLI executable found in %MASST_DIR%!
+                            endlocal
+                            exit /b 1
 
-                            if not exist "%WORKSPACE%\\MyApp.aab" (
+                            :found_exe
+                            if not exist "%WORKSPACE%\MyApp.aab" (
                                 echo ERROR: Input file MyApp.aab not found!
                                 endlocal
                                 exit /b 1
                             )
 
-                            if not exist "%WORKSPACE%\\%CONFIG_FILE%" (
+                            if not exist "%WORKSPACE%\%CONFIG_FILE%" (
                                 echo ERROR: Configuration file %CONFIG_FILE% not found!
                                 endlocal
                                 exit /b 1
                             )
 
-                            set "OUTPUT_FILE=%WORKSPACE%\\%ARTIFACTS_DIR%\\MyApp_obfuscated.aab"
+                            set "OUTPUT_FILE=%WORKSPACE%\%ARTIFACTS_DIR%\MyApp_obfuscated.aab"
 
                             echo ════════════════════════════════════════════════════
                             echo Execution Details:
                             echo ════════════════════════════════════════════════════
                             echo Executable: !MASST_EXE!
                             echo Path: !MASST_PATH!
-                            echo Input: %WORKSPACE%\\MyApp.aab
-                            echo Config: %WORKSPACE%\\%CONFIG_FILE%
+                            echo Input: %WORKSPACE%\MyApp.aab
+                            echo Config: %WORKSPACE%\%CONFIG_FILE%
                             echo Output: !OUTPUT_FILE!
                             echo ════════════════════════════════════════════════════
                             echo.
 
                             echo Executing MASSTCLI...
-                            "!MASST_PATH!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%" -output "!OUTPUT_FILE!"
+                            "!MASST_EXE!" -input "%WORKSPACE%\MyApp.aab" -config "%WORKSPACE%\%CONFIG_FILE%" -output "!OUTPUT_FILE!"
 
                             if errorlevel 1 (
-                                echo.
-                                echo ERROR: MASSTCLI execution failed with error code: %ERRORLEVEL%
+                                echo ERROR: MASSTCLI execution failed with exit code: !ERRORLEVEL!
                                 endlocal
                                 exit /b 1
                             )
@@ -586,14 +579,12 @@ pipeline {
                             if exist "!OUTPUT_FILE!" (
                                 for %%%%F in ("!OUTPUT_FILE!") do (
                                     echo ✅ Output file generated: %%%%~nxF
-                                    echo    Size: %%%%~zF bytes
+                                    echo Size: %%%%~zF bytes
                                 )
                             ) else (
                                 echo WARNING: Expected output file not found at !OUTPUT_FILE!
-                                echo Searching for generated files in output directory...
-                                for %%%%f in ("%WORKSPACE%\\%ARTIFACTS_DIR%\\*") do (
-                                    echo ✅ Found: %%%%~nxf
-                                )
+                                echo Checking %ARTIFACTS_DIR% for generated files...
+                                dir "%WORKSPACE%\%ARTIFACTS_DIR%" 2>nul || echo No files found
                             )
 
                             echo.
@@ -604,6 +595,7 @@ pipeline {
                 }
             }
         }
+
 
         stage('Archive Artifacts') {
             steps {
