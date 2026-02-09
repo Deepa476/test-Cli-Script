@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         MASST_DIR = "MASSTCLI_EXTRACTED"
-        ARTIFACTS_DIR = "."
+        ARTIFACTS_DIR = "output"
         CONFIG_FILE = "config.bm"
         MASST_ZIP = "MASSTCLI"
         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-amd64.zip"
@@ -325,9 +325,9 @@ pipeline {
                             echo Searching for MASSTCLI executable...
                             set MASST_EXE=
 
-                            for /r "%MASST_DIR%" %%f in (MASSTCLI*.exe) do (
-                                set MASST_EXE=%%~nxf
-                                set MASST_PATH=%%~dpnxf
+                            for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
+                                set MASST_EXE=%%%%~nxf
+                                set MASST_PATH=%%%%~dpnxf
                                 goto :found_exe
                             )
 
@@ -420,6 +420,32 @@ pipeline {
             }
         }
 
+        stage('Prepare Output Directory') {
+            steps {
+                echo '═══════════════════════════════════════════'
+                echo '  STAGE: Prepare Output Directory'
+                echo '═══════════════════════════════════════════'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            set -e
+
+                            echo "Creating output directory..."
+                            mkdir -p "${WORKSPACE}/${ARTIFACTS_DIR}"
+                            echo "✅ Output directory created: ${WORKSPACE}/${ARTIFACTS_DIR}"
+                            ls -la "${WORKSPACE}/${ARTIFACTS_DIR}"
+                        '''
+                    } else {
+                        bat '''
+                            echo Creating output directory...
+                            if not exist "%WORKSPACE%\\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\\%ARTIFACTS_DIR%"
+                            echo ✅ Output directory created: %WORKSPACE%\\%ARTIFACTS_DIR%
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Run MASSTCLI') {
             steps {
                 echo '═══════════════════════════════════════════'
@@ -454,6 +480,9 @@ pipeline {
                                 exit 1
                             fi
 
+                            # Define output file
+                            OUTPUT_FILE="${WORKSPACE}/${ARTIFACTS_DIR}/MyApp_obfuscated.aab"
+
                             echo "════════════════════════════════════════════════════"
                             echo "Execution Details:"
                             echo "════════════════════════════════════════════════════"
@@ -461,11 +490,12 @@ pipeline {
                             echo "Path: ${masst_exe}"
                             echo "Input: ${WORKSPACE}/MyApp.aab"
                             echo "Config: ${WORKSPACE}/${CONFIG_FILE}"
+                            echo "Output: ${OUTPUT_FILE}"
                             echo "════════════════════════════════════════════════════"
                             echo ""
 
                             echo "Executing MASSTCLI..."
-                            "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}"
+                            "${masst_exe}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}" -output "${OUTPUT_FILE}"
 
                             exit_code=$?
                             echo ""
@@ -475,6 +505,26 @@ pipeline {
                                 exit ${exit_code}
                             fi
 
+                            # Verify output file
+                            if [ ! -f "${OUTPUT_FILE}" ]; then
+                                echo "WARNING: Expected output file not found at ${OUTPUT_FILE}"
+                                echo ""
+                                echo "Searching for generated files in output directory..."
+                                find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f 2>/dev/null | while read file; do
+                                    echo "✅ Found: $(basename ${file})"
+                                    echo "   Size: $(stat -f%z "${file}" 2>/dev/null || stat -c%s "${file}" 2>/dev/null || echo "N/A") bytes"
+                                done
+
+                                if [ ! -s "${WORKSPACE}/${ARTIFACTS_DIR}"/* ]; then
+                                    echo "WARNING: No output files generated!"
+                                fi
+                            else
+                                output_size=$(stat -f%z "${OUTPUT_FILE}" 2>/dev/null || stat -c%s "${OUTPUT_FILE}" 2>/dev/null || echo "N/A")
+                                echo "✅ Output file generated: $(basename ${OUTPUT_FILE})"
+                                echo "   Size: ${output_size} bytes"
+                            fi
+
+                            echo ""
                             echo "✅ MASSTCLI execution completed successfully"
                         '''
                     } else {
@@ -485,9 +535,9 @@ pipeline {
                             echo.
 
                             set MASST_EXE=
-                            for /r "%MASST_DIR%" %%f in (MASSTCLI*.exe) do (
-                                set MASST_EXE=%%~nxf
-                                set MASST_PATH=%%~dpnxf
+                            for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
+                                set MASST_EXE=%%%%~nxf
+                                set MASST_PATH=%%%%~dpnxf
                             )
 
                             if not defined MASST_EXE (
@@ -508,6 +558,8 @@ pipeline {
                                 exit /b 1
                             )
 
+                            set "OUTPUT_FILE=%WORKSPACE%\\%ARTIFACTS_DIR%\\MyApp_obfuscated.aab"
+
                             echo ════════════════════════════════════════════════════
                             echo Execution Details:
                             echo ════════════════════════════════════════════════════
@@ -515,11 +567,12 @@ pipeline {
                             echo Path: !MASST_PATH!
                             echo Input: %WORKSPACE%\\MyApp.aab
                             echo Config: %WORKSPACE%\\%CONFIG_FILE%
+                            echo Output: !OUTPUT_FILE!
                             echo ════════════════════════════════════════════════════
                             echo.
 
                             echo Executing MASSTCLI...
-                            "!MASST_PATH!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%"
+                            "!MASST_PATH!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%" -output "!OUTPUT_FILE!"
 
                             if errorlevel 1 (
                                 echo.
@@ -529,7 +582,180 @@ pipeline {
                             )
 
                             echo.
-                            echo ✅ MASSTCLI execution completed
+
+                            if exist "!OUTPUT_FILE!" (
+                                for %%%%F in ("!OUTPUT_FILE!") do (
+                                    echo ✅ Output file generated: %%%%~nxF
+                                    echo    Size: %%%%~zF bytes
+                                )
+                            ) else (
+                                echo WARNING: Expected output file not found at !OUTPUT_FILE!
+                                echo Searching for generated files in output directory...
+                                for %%%%f in ("%WORKSPACE%\\%ARTIFACTS_DIR%\\*") do (
+                                    echo ✅ Found: %%%%~nxf
+                                )
+                            )
+
+                            echo.
+                            echo ✅ MASSTCLI execution completed successfully
+                            endlocal
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                echo '═══════════════════════════════════════════'
+                echo '  STAGE 5: Archive Artifacts'
+                echo '═══════════════════════════════════════════'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            echo "Archiving output artifacts..."
+                            echo ""
+
+                            if [ ! -d "${WORKSPACE}/${ARTIFACTS_DIR}" ]; then
+                                echo "ERROR: Artifacts directory not found!"
+                                exit 1
+                            fi
+
+                            echo "Contents of ${ARTIFACTS_DIR}:"
+                            find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f 2>/dev/null | while read file; do
+                                filename=$(basename "${file}")
+                                filesize=$(stat -f%z "${file}" 2>/dev/null || stat -c%s "${file}" 2>/dev/null || echo "N/A")
+                                echo "  ✅ ${filename} (${filesize} bytes)"
+                            done
+
+                            echo ""
+                            echo "✅ Artifacts ready for archival"
+                        '''
+                    } else {
+                        bat '''
+                            echo Archiving output artifacts...
+                            echo.
+
+                            if not exist "%WORKSPACE%\\%ARTIFACTS_DIR%" (
+                                echo ERROR: Artifacts directory not found!
+                                exit /b 1
+                            )
+
+                            echo Contents of %ARTIFACTS_DIR%:
+                            for %%%%f in ("%WORKSPACE%\\%ARTIFACTS_DIR%\\*") do (
+                                echo   ✅ %%%%~nxf
+                            )
+
+                            echo.
+                            echo ✅ Artifacts ready for archival
+                        '''
+                    }
+                }
+                archiveArtifacts artifacts: 'output/**', allowEmptyArchive: false, fingerprint: true, onlyIfSuccessful: true
+            }
+        }
+
+        stage('Generate Report') {
+            steps {
+                echo '═══════════════════════════════════════════'
+                echo '  STAGE 6: Generate Report'
+                echo '═══════════════════════════════════════════'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            set -e
+
+                            REPORT_FILE="${WORKSPACE}/${ARTIFACTS_DIR}/build_report.txt"
+
+                            echo "Generating build report..."
+                            {
+                                echo "════════════════════════════════════════════════════"
+                                echo "MASSTCLI Build Report"
+                                echo "════════════════════════════════════════════════════"
+                                echo ""
+                                echo "Job Name: ${JOB_NAME}"
+                                echo "Build Number: ${BUILD_NUMBER}"
+                                echo "Build Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
+                                echo "Workspace: ${WORKSPACE}"
+                                echo ""
+                                echo "════════════════════════════════════════════════════"
+                                echo "Input Files"
+                                echo "════════════════════════════════════════════════════"
+                                echo "Config File: ${CONFIG_FILE}"
+                                if [ -f "${WORKSPACE}/${CONFIG_FILE}" ]; then
+                                    echo "Config File Size: $(stat -f%z "${WORKSPACE}/${CONFIG_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${CONFIG_FILE}" 2>/dev/null) bytes"
+                                fi
+                                echo ""
+                                echo "Input File: MyApp.aab"
+                                if [ -f "${WORKSPACE}/MyApp.aab" ]; then
+                                    echo "Input File Size: $(stat -f%z "${WORKSPACE}/MyApp.aab" 2>/dev/null || stat -c%s "${WORKSPACE}/MyApp.aab" 2>/dev/null) bytes"
+                                fi
+                                echo ""
+                                echo "════════════════════════════════════════════════════"
+                                echo "Output Files"
+                                echo "════════════════════════════════════════════════════"
+                                find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f ! -name "build_report.txt" | while read file; do
+                                    filename=$(basename "${file}")
+                                    filesize=$(stat -f%z "${file}" 2>/dev/null || stat -c%s "${file}" 2>/dev/null)
+                                    echo "File: ${filename}"
+                                    echo "Size: ${filesize} bytes"
+                                    echo ""
+                                done
+                                echo "════════════════════════════════════════════════════"
+                                echo "Build Status: SUCCESS"
+                                echo "════════════════════════════════════════════════════"
+                            } > "${REPORT_FILE}"
+
+                            echo "✅ Build report generated: ${REPORT_FILE}"
+                            echo ""
+                            cat "${REPORT_FILE}"
+                        '''
+                    } else {
+                        bat '''
+                            setlocal enabledelayedexpansion
+
+                            set REPORT_FILE=%WORKSPACE%\\%ARTIFACTS_DIR%\\build_report.txt
+
+                            echo Generating build report...
+                            (
+                                echo ════════════════════════════════════════════════════
+                                echo MASSTCLI Build Report
+                                echo ════════════════════════════════════════════════════
+                                echo.
+                                echo Job Name: %JOB_NAME%
+                                echo Build Number: %BUILD_NUMBER%
+                                echo Workspace: %WORKSPACE%
+                                echo.
+                                echo ════════════════════════════════════════════════════
+                                echo Input Files
+                                echo ════════════════════════════════════════════════════
+                                echo Config File: %CONFIG_FILE%
+                                if exist "%WORKSPACE%\\%CONFIG_FILE%" (
+                                    for %%%%F in ("%WORKSPACE%\\%CONFIG_FILE%") do echo Config File Size: %%%%~zF bytes
+                                )
+                                echo.
+                                echo Input File: MyApp.aab
+                                if exist "%WORKSPACE%\\MyApp.aab" (
+                                    for %%%%F in ("%WORKSPACE%\\MyApp.aab") do echo Input File Size: %%%%~zF bytes
+                                )
+                                echo.
+                                echo ════════════════════════════════════════════════════
+                                echo Output Files
+                                echo ════════════════════════════════════════════════════
+                                for %%%%f in ("%WORKSPACE%\\%ARTIFACTS_DIR%\\*") do (
+                                    echo File: %%%%~nxf
+                                    echo Size: %%%%~zf bytes
+                                    echo.
+                                )
+                                echo ════════════════════════════════════════════════════
+                                echo Build Status: SUCCESS
+                                echo ════════════════════════════════════════════════════
+                            ) > "!REPORT_FILE!"
+
+                            echo ✅ Build report generated: !REPORT_FILE!
+                            echo.
+                            type "!REPORT_FILE!"
+
                             endlocal
                         '''
                     }
@@ -550,6 +776,7 @@ pipeline {
                         echo "Build Status: SUCCESS"
                         echo "Job: ${JOB_NAME}"
                         echo "Build: ${BUILD_NUMBER}"
+                        echo "Output Location: ${WORKSPACE}/${ARTIFACTS_DIR}"
                         echo ""
                     '''
                 } else {
@@ -558,6 +785,7 @@ pipeline {
                         echo Build Status: SUCCESS
                         echo Job: %JOB_NAME%
                         echo Build: %BUILD_NUMBER%
+                        echo Output Location: %WORKSPACE%\\%ARTIFACTS_DIR%
                         echo.
                     '''
                 }
@@ -597,25 +825,27 @@ pipeline {
                 if (isUnix()) {
                     sh '''
                         echo ""
-                        echo "All files have been preserved in workspace:"
+                        echo "Workspace Contents:"
                         echo "  • MASSTCLI.zip"
                         echo "  • MASSTCLI_EXTRACTED (extracted files)"
                         echo "  • MyApp.aab"
                         echo "  • config.bm"
+                        echo "  • output/ (generated files and report)"
                         echo ""
-                        echo "You can inspect or reuse these files for debugging or subsequent builds."
+                        echo "Files are available in Jenkins artifacts and workspace."
                         echo ""
                     '''
                 } else {
                     bat '''
                         echo.
-                        echo All files have been preserved in workspace:
+                        echo Workspace Contents:
                         echo   • MASSTCLI.zip
                         echo   • MASSTCLI_EXTRACTED (extracted files)
                         echo   • MyApp.aab
                         echo   • config.bm
+                        echo   • output/ (generated files and report)
                         echo.
-                        echo You can inspect or reuse these files for debugging or subsequent builds.
+                        echo Files are available in Jenkins artifacts and workspace.
                         echo.
                     '''
                 }
