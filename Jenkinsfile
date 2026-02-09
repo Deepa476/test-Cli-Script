@@ -545,29 +545,29 @@ pipeline {
                             exit /b 1
 
                             :found_exe
-                            if not exist "%WORKSPACE%\MyApp.aab" (
+                            if not exist "%WORKSPACE%\\MyApp.aab" (
                                 echo ERROR: Input file MyApp.aab not found!
                                 endlocal
                                 exit /b 1
                             )
 
-                            if not exist "%WORKSPACE%\%CONFIG_FILE%" (
+                            if not exist "%WORKSPACE%\\%CONFIG_FILE%" (
                                 echo ERROR: Configuration file %CONFIG_FILE% not found!
                                 endlocal
                                 exit /b 1
                             )
 
                             REM Create output directory
-                            if not exist "%WORKSPACE%\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\%ARTIFACTS_DIR%"
+                            if not exist "%WORKSPACE%\\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\\%ARTIFACTS_DIR%"
 
-                            set "OUTPUT_FILE=%WORKSPACE%\%ARTIFACTS_DIR%\MyApp_obfuscated.aab"
+                            set "OUTPUT_FILE=%WORKSPACE%\\%ARTIFACTS_DIR%\\MyApp_obfuscated.aab"
 
                             echo ════════════════════════════════════════════════════
                             echo Execution Details:
                             echo ════════════════════════════════════════════════════
                             echo Executable: !MASST_EXE!
-                            echo Input File: %WORKSPACE%\MyApp.aab
-                            echo Config File: %WORKSPACE%\%CONFIG_FILE%
+                            echo Input File: %WORKSPACE%\\MyApp.aab
+                            echo Config File: %WORKSPACE%\\%CONFIG_FILE%
                             echo Output File: !OUTPUT_FILE!
                             echo ════════════════════════════════════════════════════
                             echo.
@@ -575,7 +575,7 @@ pipeline {
                             echo Starting MASSTCLI execution...
                             echo.
 
-                            "!MASST_EXE!" -input "%WORKSPACE%\MyApp.aab" -config "%WORKSPACE%\%CONFIG_FILE%" -output "!OUTPUT_FILE!"
+                            "!MASST_EXE!" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%" -output "!OUTPUT_FILE!"
 
                             if errorlevel 1 (
                                 echo.
@@ -595,7 +595,7 @@ pipeline {
                             ) else (
                                 echo ⚠ Warning: Output file not found at expected location
                                 echo Checking for any generated files...
-                                dir "%WORKSPACE%\%ARTIFACTS_DIR%" 2>nul || echo No files found in output directory
+                                dir "%WORKSPACE%\\%ARTIFACTS_DIR%" 2>nul || echo No files found in output directory
                             )
 
                             endlocal
