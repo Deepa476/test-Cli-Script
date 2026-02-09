@@ -506,9 +506,16 @@ pipeline {
                                 echo "✅ MASSTCLI execution completed successfully"
 
                                 # Try to find generated AAB in artifacts dir first, then workspace
-                                found_file=$(find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f \( -name "*_obfuscated.aab" -o -name "*.aab" \) 2>/dev/null | head -n 1 || true)
+                                found_file=$(find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f -name "*_obfuscated.aab" 2>/dev/null | head -n 1 || true)
                                 if [ -z "${found_file}" ]; then
-                                    found_file=$(find "${WORKSPACE}" -type f \( -name "*_obfuscated.aab" -o -name "*.aab" \) -not -path "${WORKSPACE}/${MASST_ZIP}.zip" 2>/dev/null | head -n 1 || true)
+                                    found_file=$(find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f -name "*.aab" 2>/dev/null | head -n 1 || true)
+                                fi
+
+                                if [ -z "${found_file}" ]; then
+                                    found_file=$(find "${WORKSPACE}" -type f -name "*_obfuscated.aab" -not -path "${WORKSPACE}/${MASST_ZIP}.zip" 2>/dev/null | head -n 1 || true)
+                                fi
+                                if [ -z "${found_file}" ]; then
+                                    found_file=$(find "${WORKSPACE}" -type f -name "*.aab" -not -path "${WORKSPACE}/${MASST_ZIP}.zip" 2>/dev/null | head -n 1 || true)
                                 fi
 
                                 if [ -n "${found_file}" ]; then
@@ -587,8 +594,6 @@ pipeline {
                 }
             }
         }
-
-
 
         stage('Archive Artifacts') {
             steps {
