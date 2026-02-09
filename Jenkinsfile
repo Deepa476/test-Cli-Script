@@ -180,14 +180,14 @@ pipeline {
 
                                 echo "Finding extracted contents..."
 
-                                item_count=$(find "${TEMP_EXTRACT}" -maxdepth 1 ! -name . -type d | wc -l)
+                                item_count=$(find "${TEMP_EXTRACT}" -mindepth 1 -maxdepth 1 -type d | wc -l)
 
                                 if [ "${item_count}" -eq 1 ]; then
-                                    extracted_folder=$(find "${TEMP_EXTRACT}" -maxdepth 1 -type d ! -name . | head -n 1)
+                                    extracted_folder=$(find "${TEMP_EXTRACT}" -mindepth 1 -maxdepth 1 -type d | head -n 1)
                                     echo "Found folder: $(basename "${extracted_folder}")"
                                     echo "Moving extracted folder to workspace..."
                                     mv "${extracted_folder}" "${WORKSPACE}/${MASST_DIR}"
-                                elif [ "${item_count}" -gt 1 ] || [ $(find "${TEMP_EXTRACT}" -maxdepth 1 ! -name . -type f | wc -l) -gt 0 ]; then
+                                elif [ "${item_count}" -gt 1 ] || [ $(find "${TEMP_EXTRACT}" -mindepth 1 -maxdepth 1 -type f | wc -l) -gt 0 ]; then
                                     echo "Found multiple items in archive"
                                     echo "Moving extracted contents to workspace..."
                                     mkdir -p "${WORKSPACE}/${MASST_DIR}"
@@ -324,10 +324,11 @@ pipeline {
                             echo.
                             echo Searching for MASSTCLI executable...
                             set MASST_EXE=
+                            set MASST_PATH=
 
                             for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
-                                set MASST_EXE=%%%%~nxf
-                                set MASST_PATH=%%%%~dpnxf
+                                set "MASST_EXE=%%%%~nxf"
+                                set "MASST_PATH=%%%%~dpF%%%%~nxf"
                                 goto :found_exe
                             )
 
@@ -642,7 +643,7 @@ pipeline {
                             )
 
                             echo Contents of %ARTIFACTS_DIR%:
-                            for %%%%f in ("%WORKSPACE%\\%ARTIFACTS_DIR%\\*") do (
+                            for %%%%f in (%WORKSPACE%\\%ARTIFACTS_DIR%\\*) do (
                                 echo   ✅ %%%%~nxf
                             )
 
@@ -742,9 +743,9 @@ pipeline {
                                 echo ════════════════════════════════════════════════════
                                 echo Output Files
                                 echo ════════════════════════════════════════════════════
-                                for %%%%f in ("%WORKSPACE%\\%ARTIFACTS_DIR%\\*") do (
+                                for %%%%f in (%WORKSPACE%\\%ARTIFACTS_DIR%\\*) do (
                                     echo File: %%%%~nxf
-                                    echo Size: %%%%~zf bytes
+                                    echo Size: %%%%~zF bytes
                                     echo.
                                 )
                                 echo ════════════════════════════════════════════════════
