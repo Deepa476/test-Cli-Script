@@ -16,11 +16,12 @@ pipeline {
         MASST_ZIP = "MASSTCLI"
 //         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
-        INPUT_FILE = "app-release.aab"
+        INPUT_FILE = "GreenMentis.xcarchive"
         KEYSTORE_FILE = "Bluebeetle.jks"
         KEYSTORE_PASSWORD = "bugs@1234"
         KEY_ALIAS = "key0"
         KEY_PASSWORD = "bugs@1234"
+        IDENTITY = "Apple Distribution"
     }
 
     options {
@@ -113,44 +114,55 @@ pipeline {
                             MASST_EXE=\$(find "${MASST_DIR}" -type f -name "MASSTCLI*" -print -quit)
                             [ -x "\${MASST_EXE}" ] || { echo "ERROR: MASSTCLI executable not found or not executable"; exit 1; }
 
-                            # Construct full paths
                             INPUT_PATH="${WORKSPACE}/${INPUT_FILE}"
                             CONFIG_PATH="${WORKSPACE}/${CONFIG_FILE}"
 
-                            echo "=========================================="
-                            echo "MASSTCLI Execution Configuration"
-                            echo "=========================================="
-                            echo "  Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}"
-                            echo "  Input: \${INPUT_PATH}"
-                            echo "  Config: \${CONFIG_PATH}"
-                            echo ""
+                            # Detect input extension (case-insensitive)
+                            case "\$(echo "${INPUT_FILE}" | awk -F. '{print tolower(\$NF)}')" in
+                                xcarchive|ipa)
+                                    echo "=========================================="
+                                    echo "MASSTCLI Execution Configuration (IDENTITY)"
+                                    echo "=========================================="
+                                    echo "  Input: \${INPUT_PATH}"
+                                    echo "  Config: \${CONFIG_PATH}"
+                                    echo ""
+                                    echo "🔐 Using Apple identity for both DEBUG and RELEASE"
+                                    echo ""
+                                    "\${MASST_EXE}" -input="\${INPUT_PATH}" -config="\${CONFIG_PATH}" -identity="Apple Distribution: My Company" || exit 1
+                                    ;;
+                                *)
+                                    echo "=========================================="
+                                    echo "MASSTCLI Execution Configuration"
+                                    echo "=========================================="
+                                    echo "  Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}"
+                                    echo "  Input: \${INPUT_PATH}"
+                                    echo "  Config: \${CONFIG_PATH}"
+                                    echo ""
 
-                            # Execute based on debug flag
-                            if [ "${isDebug}" = "true" ]; then
-                                echo "🔧 Running in DEBUG mode (simple command)..."
-                                echo ""
+                                    if [ "${isDebug}" = "true" ]; then
+                                        echo "🔧 Running in DEBUG mode (simple command)..."
+                                        echo ""
+                                        "\${MASST_EXE}" -input="\${INPUT_PATH}" -config="\${CONFIG_PATH}" || exit 1
+                                    else
+                                        echo "🚀 Running in RELEASE mode (with keystore signing)..."
+                                        echo ""
+                                        KEYSTORE_PATH="${WORKSPACE}/${KEYSTORE_FILE}"
+                                        [ -f "\${KEYSTORE_PATH}" ] || { echo "ERROR: Keystore file not found at \${KEYSTORE_PATH}"; exit 1; }
 
-                                \${MASST_EXE} -input=\${INPUT_PATH} -config=\${CONFIG_PATH} || exit 1
-                            else
-                                echo "🚀 Running in RELEASE mode (with keystore signing)..."
-                                echo ""
+                                        echo "  Keystore: \${KEYSTORE_PATH}"
+                                        echo "  Alias: ${KEY_ALIAS}"
+                                        echo ""
 
-                                # Validate keystore files exist for release mode
-                                KEYSTORE_PATH="${WORKSPACE}/${KEYSTORE_FILE}"
-                                [ -f "\${KEYSTORE_PATH}" ] || { echo "ERROR: Keystore file not found at \${KEYSTORE_PATH}"; exit 1; }
-
-                                echo "  Keystore: \${KEYSTORE_PATH}"
-                                echo "  Alias: ${KEY_ALIAS}"
-                                echo ""
-
-                                \${MASST_EXE} -input=\${INPUT_PATH} \\
-                                    -config=\${CONFIG_PATH} \\
-                                    -keystore=\${KEYSTORE_PATH} \\
-                                    -storePassword=${KEYSTORE_PASSWORD} \\
-                                    -alias=${KEY_ALIAS} \\
-                                    -keyPassword=${KEY_PASSWORD} \\
-                                    -v=true -apk || exit 1
-                            fi
+                                        "\${MASST_EXE}" -input="\${INPUT_PATH}" \
+                                            -config="\${CONFIG_PATH}" \
+                                            -keystore="\${KEYSTORE_PATH}" \
+                                            -storePassword=${KEYSTORE_PASSWORD} \
+                                            -alias=${KEY_ALIAS} \
+                                            -keyPassword=${KEY_PASSWORD} \
+                                            -v=true -apk || exit 1
+                                    fi
+                                    ;;
+                            esac
 
                             echo ""
                             echo "✅ MASSTCLI completed successfully"
@@ -173,48 +185,71 @@ pipeline {
                                 set "INPUT_PATH=%WORKSPACE%\\%INPUT_FILE%"
                                 set "CONFIG_PATH=%WORKSPACE%\\%CONFIG_FILE%"
 
-                                echo ==========================================
-                                echo MASSTCLI Execution Configuration
-                                echo ==========================================
-                                echo   Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}
-                                echo   Input: !INPUT_PATH!
-                                echo   Config: !CONFIG_PATH!
-                                echo.
-
-                                REM Execute based on debug flag
-                                if "${isDebug}"=="true" (
-                                    echo 🔧 Running in DEBUG mode (simple command)...
+                                for %%A in ("!INPUT_PATH!") do set "EXT=%%~xA"
+                                if /I "!EXT!"==".xcarchive" (
+                                    echo ==========================================
+                                    echo MASSTCLI Execution Configuration (IDENTITY)
+                                    echo ==========================================
+                                    echo   Input: !INPUT_PATH!
+                                    echo   Config: !CONFIG_PATH!
                                     echo.
-
-                                    "!MASST_EXE!" -input=!INPUT_PATH! -config=!CONFIG_PATH! || exit /b 1
+                                    echo 🔐 Using Apple identity for both DEBUG and RELEASE
+                                    echo.
+                                    "!MASST_EXE!" -input="!INPUT_PATH!" -config="!CONFIG_PATH!" -identity="Apple Distribution: My Company" || exit /b 1
+                                    endlocal
+                                    exit /b 0
+                                ) else if /I "!EXT!"==".ipa" (
+                                    echo ==========================================
+                                    echo MASSTCLI Execution Configuration (IDENTITY)
+                                    echo ==========================================
+                                    echo   Input: !INPUT_PATH!
+                                    echo   Config: !CONFIG_PATH!
+                                    echo.
+                                    echo 🔐 Using Apple identity for both DEBUG and RELEASE
+                                    echo.
+                                    "!MASST_EXE!" -input="!INPUT_PATH!" -config="!CONFIG_PATH!" -identity="Apple Distribution: My Company" || exit /b 1
+                                    endlocal
+                                    exit /b 0
                                 ) else (
-                                    echo 🚀 Running in RELEASE mode (with keystore signing)...
+                                    echo ==========================================
+                                    echo MASSTCLI Execution Configuration
+                                    echo ==========================================
+                                    echo   Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}
+                                    echo   Input: !INPUT_PATH!
+                                    echo   Config: !CONFIG_PATH!
                                     echo.
 
-                                    set "KEYSTORE_PATH=%WORKSPACE%\\%KEYSTORE_FILE%"
+                                    if "${isDebug}"=="true" (
+                                        echo 🔧 Running in DEBUG mode (simple command)...
+                                        echo.
+                                        "!MASST_EXE!" -input=!INPUT_PATH! -config=!CONFIG_PATH! || exit /b 1
+                                        endlocal
+                                        exit /b 0
+                                    ) else (
+                                        echo 🚀 Running in RELEASE mode (with keystore signing)...
+                                        echo.
+                                        set "KEYSTORE_PATH=%WORKSPACE%\\%KEYSTORE_FILE%"
 
-                                    if not exist "!KEYSTORE_PATH!" (
-                                        echo ERROR: Keystore file not found at !KEYSTORE_PATH!
-                                        exit /b 1
+                                        if not exist "!KEYSTORE_PATH!" (
+                                            echo ERROR: Keystore file not found at !KEYSTORE_PATH!
+                                            exit /b 1
+                                        )
+
+                                        echo   Keystore: !KEYSTORE_PATH!
+                                        echo   Alias: %KEY_ALIAS%
+                                        echo.
+
+                                        "!MASST_EXE!" -input=!INPUT_PATH! ^
+                                            -config=!CONFIG_PATH! ^
+                                            -keystore=!KEYSTORE_PATH! ^
+                                            -storePassword=%KEYSTORE_PASSWORD% ^
+                                            -alias=%KEY_ALIAS% ^
+                                            -keyPassword=%KEY_PASSWORD% ^
+                                            -v=true || exit /b 1
+                                        endlocal
+                                        exit /b 0
                                     )
-
-                                    echo   Keystore: !KEYSTORE_PATH!
-                                    echo   Alias: %KEY_ALIAS%
-                                    echo.
-
-                                    "!MASST_EXE!" -input=!INPUT_PATH! ^
-                                        -config=!CONFIG_PATH! ^
-                                        -keystore=!KEYSTORE_PATH! ^
-                                        -storePassword=%KEYSTORE_PASSWORD% ^
-                                        -alias=%KEY_ALIAS% ^
-                                        -keyPassword=%KEY_PASSWORD% ^
-                                        -v=true || exit /b 1
                                 )
-
-                                echo.
-                                echo ✅ MASSTCLI completed successfully
-                                endlocal
-                                exit /b 0
                             )
                             echo ERROR: MASSTCLI executable not found
                             exit /b 1
@@ -223,6 +258,7 @@ pipeline {
                 }
             }
         }
+
 
         stage('Archive & Report') {
             steps {
