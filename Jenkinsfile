@@ -149,7 +149,7 @@ pipeline {
                                     -storePassword=${KEYSTORE_PASSWORD} \\
                                     -alias=${KEY_ALIAS} \\
                                     -keyPassword=${KEY_PASSWORD} \\
-                                    -v=true || exit 1
+                                    -v=true -apk || exit 1
                             fi
 
                             echo ""
