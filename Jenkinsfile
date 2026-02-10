@@ -16,7 +16,7 @@ pipeline {
         MASST_ZIP = "MASSTCLI"
 //         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
-        INPUT_FILE = "GreenMentis.xcarchive"
+        INPUT_FILE = "meal_metrics.ipa"
         KEYSTORE_FILE = "Bluebeetle.jks"
         KEYSTORE_PASSWORD = "bugs@1234"
         KEY_ALIAS = "key0"
