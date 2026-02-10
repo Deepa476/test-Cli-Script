@@ -1,6 +1,14 @@
 pipeline {
     agent any
 
+    parameters {
+        booleanParam(
+            name: 'IS_DEBUG',
+            defaultValue: true,
+            description: 'Check for debug build (simple command), uncheck for release build (with keystore signing)'
+        )
+    }
+
     environment {
         MASST_DIR = "MASSTCLI_EXTRACTED"
         ARTIFACTS_DIR = "output"
@@ -8,6 +16,10 @@ pipeline {
         MASST_ZIP = "MASSTCLI"
         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
         INPUT_FILE = "demoApp.aab"
+        KEYSTORE_FILE = "Test/key"
+        KEYSTORE_PASSWORD = "dfdf"
+        KEY_ALIAS = "key0"
+        KEY_PASSWORD = "dfsdfs"
     }
 
     options {
@@ -83,79 +95,13 @@ pipeline {
             }
         }
 
-//         stage('Validate Android SDK') {
-//             steps {
-//                 script {
-//                     if (isUnix()) {
-//                         sh '''
-//                             set -e
-//
-//                             echo "🔍 Validating Android SDK..."
-//
-//                             SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-//
-//                             if [ -z "$SDK_ROOT" ]; then
-//                                 echo "❌ ERROR: ANDROID_HOME or ANDROID_SDK_ROOT is not set"
-//                                 exit 1
-//                             fi
-//
-//                             if [ ! -d "$SDK_ROOT" ]; then
-//                                 echo "❌ ERROR: Android SDK directory does not exist: $SDK_ROOT"
-//                                 exit 1
-//                             fi
-//
-//                             if [ ! -f "$SDK_ROOT/platform-tools/adb" ]; then
-//                                 echo "❌ ERROR: adb not found. platform-tools missing"
-//                                 exit 1
-//                             fi
-//
-//                             if [ ! -d "$SDK_ROOT/build-tools" ]; then
-//                                 echo "❌ ERROR: build-tools directory missing in Android SDK"
-//                                 exit 1
-//                             fi
-//
-//                             echo "✅ Android SDK validated at $SDK_ROOT"
-//                         '''
-//                     } else {
-//                         bat '''
-//                             echo 🔍 Validating Android SDK...
-//
-//                             if "%ANDROID_HOME%"=="" if "%ANDROID_SDK_ROOT%"=="" (
-//                                 echo ❌ ERROR: ANDROID_HOME or ANDROID_SDK_ROOT is not set
-//                                 exit /b 1
-//                             )
-//
-//                             set "SDK_ROOT=%ANDROID_HOME%"
-//                             if "%SDK_ROOT%"=="" set "SDK_ROOT=%ANDROID_SDK_ROOT%"
-//
-//                             if not exist "%SDK_ROOT%" (
-//                                 echo ❌ ERROR: Android SDK directory does not exist: %SDK_ROOT%
-//                                 exit /b 1
-//                             )
-//
-//                             if not exist "%SDK_ROOT%\\platform-tools\\adb.exe" (
-//                                 echo ❌ ERROR: adb not found. platform-tools missing
-//                                 exit /b 1
-//                             )
-//
-//                             if not exist "%SDK_ROOT%\\build-tools" (
-//                                 echo ❌ ERROR: build-tools directory missing
-//                                 exit /b 1
-//                             )
-//
-//                             echo ✅ Android SDK validated at %SDK_ROOT%
-//                         '''
-//                     }
-//                 }
-//             }
-//         }
-
-
         stage('Validate & Execute') {
             steps {
                 script {
+                    def isDebug = params.IS_DEBUG
+
                     if (isUnix()) {
-                        sh '''
+                        sh """
                             set -e
 
                             # Validate input files exist
@@ -163,25 +109,53 @@ pipeline {
                             [ -f "${WORKSPACE}/${CONFIG_FILE}" ] || { echo "ERROR: ${CONFIG_FILE} not found"; exit 1; }
 
                             # Find MASSTCLI executable
-                            MASST_EXE=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" -print -quit)
-                            [ -x "${MASST_EXE}" ] || { echo "ERROR: MASSTCLI executable not found or not executable"; exit 1; }
+                            MASST_EXE=\$(find "${MASST_DIR}" -type f -name "MASSTCLI*" -print -quit)
+                            [ -x "\${MASST_EXE}" ] || { echo "ERROR: MASSTCLI executable not found or not executable"; exit 1; }
 
                             # Construct full paths
                             INPUT_PATH="${WORKSPACE}/${INPUT_FILE}"
                             CONFIG_PATH="${WORKSPACE}/${CONFIG_FILE}"
 
-                            echo "Executing MASSTCLI with parameters:"
-                            echo "  Input: ${INPUT_PATH}"
-                            echo "  Config: ${CONFIG_PATH}"
+                            echo "=========================================="
+                            echo "MASSTCLI Execution Configuration"
+                            echo "=========================================="
+                            echo "  Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}"
+                            echo "  Input: \${INPUT_PATH}"
+                            echo "  Config: \${CONFIG_PATH}"
                             echo ""
 
-                            # Execute with same format as CLI: -input=/path -config=/path
-                            # NOTE: Do NOT create output folder - let MASSTCLI create it
-                            ${MASST_EXE} -input=${INPUT_PATH} -config=${CONFIG_PATH} || exit 1
+                            # Execute based on debug flag
+                            if [ "${isDebug}" = "true" ]; then
+                                echo "🔧 Running in DEBUG mode (simple command)..."
+                                echo ""
+
+                                \${MASST_EXE} -input=\${INPUT_PATH} -config=\${CONFIG_PATH} || exit 1
+                            else
+                                echo "🚀 Running in RELEASE mode (with keystore signing)..."
+                                echo ""
+
+                                # Validate keystore files exist for release mode
+                                KEYSTORE_PATH="${WORKSPACE}/${KEYSTORE_FILE}"
+                                [ -f "\${KEYSTORE_PATH}" ] || { echo "ERROR: Keystore file not found at \${KEYSTORE_PATH}"; exit 1; }
+
+                                echo "  Keystore: \${KEYSTORE_PATH}"
+                                echo "  Alias: ${KEY_ALIAS}"
+                                echo ""
+
+                                \${MASST_EXE} -input=\${INPUT_PATH} \\
+                                    -config=\${CONFIG_PATH} \\
+                                    -keystore=\${KEYSTORE_PATH} \\
+                                    -storePassword=${KEYSTORE_PASSWORD} \\
+                                    -alias=${KEY_ALIAS} \\
+                                    -keyPassword=${KEY_PASSWORD} \\
+                                    -v=true || exit 1
+                            fi
+
+                            echo ""
                             echo "✅ MASSTCLI completed successfully"
-                        '''
+                        """
                     } else {
-                        bat '''
+                        bat """
                             setlocal enabledelayedexpansion
 
                             if not exist "%WORKSPACE%\\%INPUT_FILE%" (
@@ -198,21 +172,52 @@ pipeline {
                                 set "INPUT_PATH=%WORKSPACE%\\%INPUT_FILE%"
                                 set "CONFIG_PATH=%WORKSPACE%\\%CONFIG_FILE%"
 
-                                echo Executing MASSTCLI with parameters:
+                                echo ==========================================
+                                echo MASSTCLI Execution Configuration
+                                echo ==========================================
+                                echo   Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}
                                 echo   Input: !INPUT_PATH!
                                 echo   Config: !CONFIG_PATH!
                                 echo.
 
-                                REM Execute with same format as CLI: -input=path -config=path
-                                REM NOTE: Do NOT create output folder - let MASSTCLI create it
-                                "!MASST_EXE!" -input=!INPUT_PATH! -config=!CONFIG_PATH! || exit /b 1
+                                REM Execute based on debug flag
+                                if "${isDebug}"=="true" (
+                                    echo 🔧 Running in DEBUG mode (simple command)...
+                                    echo.
+
+                                    "!MASST_EXE!" -input=!INPUT_PATH! -config=!CONFIG_PATH! || exit /b 1
+                                ) else (
+                                    echo 🚀 Running in RELEASE mode (with keystore signing)...
+                                    echo.
+
+                                    set "KEYSTORE_PATH=%WORKSPACE%\\%KEYSTORE_FILE%"
+
+                                    if not exist "!KEYSTORE_PATH!" (
+                                        echo ERROR: Keystore file not found at !KEYSTORE_PATH!
+                                        exit /b 1
+                                    )
+
+                                    echo   Keystore: !KEYSTORE_PATH!
+                                    echo   Alias: %KEY_ALIAS%
+                                    echo.
+
+                                    "!MASST_EXE!" -input=!INPUT_PATH! ^
+                                        -config=!CONFIG_PATH! ^
+                                        -keystore=!KEYSTORE_PATH! ^
+                                        -storePassword=%KEYSTORE_PASSWORD% ^
+                                        -alias=%KEY_ALIAS% ^
+                                        -keyPassword=%KEY_PASSWORD% ^
+                                        -v=true || exit /b 1
+                                )
+
+                                echo.
                                 echo ✅ MASSTCLI completed successfully
                                 endlocal
                                 exit /b 0
                             )
                             echo ERROR: MASSTCLI executable not found
                             exit /b 1
-                        '''
+                        """
                     }
                 }
             }
@@ -221,33 +226,36 @@ pipeline {
         stage('Archive & Report') {
             steps {
                 script {
+                    def buildMode = params.IS_DEBUG ? 'DEBUG' : 'RELEASE'
+
                     if (isUnix()) {
-                        sh '''
+                        sh """
                             REPORT="${WORKSPACE}/${ARTIFACTS_DIR}/build_report.txt"
 
                             {
                                 echo "MASSTCLI Build Report"
                                 echo "===================================================="
                                 echo "Job: ${JOB_NAME} | Build: ${BUILD_NUMBER}"
-                                echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
+                                echo "Build Mode: ${buildMode}"
+                                echo "Timestamp: \$(date '+%Y-%m-%d %H:%M:%S')"
                                 echo ""
                                 echo "Input Files:"
-                                [ -f "${WORKSPACE}/${INPUT_FILE}" ] && echo "  ${INPUT_FILE}: $(stat -f%z "${WORKSPACE}/${INPUT_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${INPUT_FILE}") bytes"
-                                [ -f "${WORKSPACE}/${CONFIG_FILE}" ] && echo "  ${CONFIG_FILE}: $(stat -f%z "${WORKSPACE}/${CONFIG_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${CONFIG_FILE}") bytes"
+                                [ -f "${WORKSPACE}/${INPUT_FILE}" ] && echo "  ${INPUT_FILE}: \$(stat -f%z "${WORKSPACE}/${INPUT_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${INPUT_FILE}") bytes"
+                                [ -f "${WORKSPACE}/${CONFIG_FILE}" ] && echo "  ${CONFIG_FILE}: \$(stat -f%z "${WORKSPACE}/${CONFIG_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${CONFIG_FILE}") bytes"
                                 echo ""
                                 echo "Output Files:"
                                 find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f ! -name "build_report.txt" | while read file; do
-                                    echo "  $(basename "$file"): $(stat -f%z "$file" 2>/dev/null || stat -c%s "$file") bytes"
+                                    echo "  \$(basename "\$file"): \$(stat -f%z "\$file" 2>/dev/null || stat -c%s "\$file") bytes"
                                 done
                                 echo ""
                                 echo "Status: SUCCESS"
                                 echo "===================================================="
-                            } > "${REPORT}"
+                            } > "\${REPORT}"
 
-                            cat "${REPORT}"
-                        '''
+                            cat "\${REPORT}"
+                        """
                     } else {
-                        bat '''
+                        bat """
                             setlocal enabledelayedexpansion
                             set "REPORT=%WORKSPACE%\\%ARTIFACTS_DIR%\\build_report.txt"
 
@@ -255,9 +263,12 @@ pipeline {
                                 echo MASSTCLI Build Report
                                 echo ====================================================
                                 echo Job: %JOB_NAME% - Build: %BUILD_NUMBER%
+                                echo Build Mode: ${buildMode}
+                                echo Timestamp: %DATE% %TIME%
                                 echo.
                                 echo Input Files:
                                 echo   %INPUT_FILE%
+                                echo   %CONFIG_FILE%
                                 echo.
                                 echo Output Files:
                                 for %%%%f in (%WORKSPACE%\\%ARTIFACTS_DIR%\\*) do (
@@ -270,7 +281,7 @@ pipeline {
 
                             type "!REPORT!"
                             endlocal
-                        '''
+                        """
                     }
                 }
                 archiveArtifacts artifacts: 'output/**', allowEmptyArchive: false, fingerprint: true, onlyIfSuccessful: true
@@ -325,7 +336,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Pipeline completed successfully'
+            script {
+                def buildMode = params.IS_DEBUG ? 'DEBUG' : 'RELEASE'
+                echo "✅ Pipeline completed successfully - ${buildMode} build"
+            }
         }
         failure {
             echo '❌ Pipeline failed - check logs above'
