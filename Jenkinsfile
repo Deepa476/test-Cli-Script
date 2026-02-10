@@ -90,18 +90,15 @@ pipeline {
                         sh '''
                             set -e
 
-                            # Validate files
+                            # Validate input files exist
                             [ -f "${WORKSPACE}/${INPUT_FILE}" ] || { echo "ERROR: ${INPUT_FILE} not found"; exit 1; }
                             [ -f "${WORKSPACE}/${CONFIG_FILE}" ] || { echo "ERROR: ${CONFIG_FILE} not found"; exit 1; }
-
-                            # Ensure output dir exists
-                            mkdir -p "${WORKSPACE}/${ARTIFACTS_DIR}"
 
                             # Find MASSTCLI executable
                             MASST_EXE=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" -print -quit)
                             [ -x "${MASST_EXE}" ] || { echo "ERROR: MASSTCLI executable not found or not executable"; exit 1; }
 
-                            # Construct full paths (same as CLI execution)
+                            # Construct full paths
                             INPUT_PATH="${WORKSPACE}/${INPUT_FILE}"
                             CONFIG_PATH="${WORKSPACE}/${CONFIG_FILE}"
 
@@ -110,7 +107,8 @@ pipeline {
                             echo "  Config: ${CONFIG_PATH}"
                             echo ""
 
-                            # Execute with EXACT same format as CLI: -input=/path -config=/path
+                            # Execute with same format as CLI: -input=/path -config=/path
+                            # NOTE: Do NOT create output folder - let MASSTCLI create it
                             ${MASST_EXE} -input=${INPUT_PATH} -config=${CONFIG_PATH} || exit 1
                             echo "✅ MASSTCLI completed successfully"
                         '''
@@ -127,8 +125,6 @@ pipeline {
                                 exit /b 1
                             )
 
-                            if not exist "%WORKSPACE%\\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\\%ARTIFACTS_DIR%"
-
                             for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
                                 set "MASST_EXE=%%%%f"
                                 set "INPUT_PATH=%WORKSPACE%\\%INPUT_FILE%"
@@ -139,7 +135,8 @@ pipeline {
                                 echo   Config: !CONFIG_PATH!
                                 echo.
 
-                                REM Execute with EXACT same format as CLI: -input=path -config=path
+                                REM Execute with same format as CLI: -input=path -config=path
+                                REM NOTE: Do NOT create output folder - let MASSTCLI create it
                                 "!MASST_EXE!" -input=!INPUT_PATH! -config=!CONFIG_PATH! || exit /b 1
                                 echo ✅ MASSTCLI completed successfully
                                 endlocal
