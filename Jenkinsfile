@@ -139,7 +139,9 @@ pipeline {
                                 [ -f "${WORKSPACE}/${CONFIG_FILE}" ] && echo "  ${CONFIG_FILE}: $(stat -f%z "${WORKSPACE}/${CONFIG_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${CONFIG_FILE}") bytes"
                                 echo ""
                                 echo "Output Files:"
-                                find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f ! -name "build_report.txt" -exec bash -c 'echo "  $(basename {}): $(stat -f%z "{}" 2>/dev/null || stat -c%s "{}") bytes"' \;
+                                find "${WORKSPACE}/${ARTIFACTS_DIR}" -type f ! -name "build_report.txt" | while read file; do
+                                    echo "  $(basename "$file"): $(stat -f%z "$file" 2>/dev/null || stat -c%s "$file") bytes"
+                                done
                                 echo ""
                                 echo "Status: SUCCESS"
                                 echo "===================================================="
