@@ -7,6 +7,7 @@ pipeline {
         CONFIG_FILE = "config.bm"
         MASST_ZIP = "MASSTCLI"
         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-amd64.zip"
+        INPUT_FILE = "demoApp.apk"
     }
 
     options {
@@ -90,7 +91,7 @@ pipeline {
                             set -e
 
                             # Validate input files
-                            [ -f "${WORKSPACE}/MyApp.aab" ] || { echo "ERROR: MyApp.aab not found"; exit 1; }
+                            [ -f "${WORKSPACE}/${INPUT_FILE}" ] || { echo "ERROR: ${INPUT_FILE} not found"; exit 1; }
                             [ -f "${WORKSPACE}/${CONFIG_FILE}" ] || { echo "ERROR: ${CONFIG_FILE} not found"; exit 1; }
 
                             # Create output dir and execute
@@ -98,19 +99,19 @@ pipeline {
                             MASST_EXE=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" | grep -v ".zip" | head -1)
 
                             echo "Executing MASSTCLI..."
-                            "${MASST_EXE}" -input "${WORKSPACE}/MyApp.aab" -config "${WORKSPACE}/${CONFIG_FILE}" || exit 1
+                            "${MASST_EXE}" -input "${WORKSPACE}/${INPUT_FILE}" -config "${WORKSPACE}/${CONFIG_FILE}" || exit 1
                             echo "✅ MASSTCLI completed successfully"
                         '''
                     } else {
                         bat '''
-                            if not exist "%WORKSPACE%\\MyApp.aab" exit /b 1
+                            if not exist "%WORKSPACE%\\%INPUT_FILE%" exit /b 1
                             if not exist "%WORKSPACE%\\%CONFIG_FILE%" exit /b 1
 
                             if not exist "%WORKSPACE%\\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\\%ARTIFACTS_DIR%"
 
                             for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
                                 echo Executing MASSTCLI...
-                                "%%%%f" -input "%WORKSPACE%\\MyApp.aab" -config "%WORKSPACE%\\%CONFIG_FILE%" || exit /b 1
+                                "%%%%f" -input "%WORKSPACE%\\%INPUT_FILE%" -config "%WORKSPACE%\\%CONFIG_FILE%" || exit /b 1
                                 echo ✅ MASSTCLI completed successfully
                                 exit /b 0
                             )
@@ -135,7 +136,7 @@ pipeline {
                                 echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
                                 echo ""
                                 echo "Input Files:"
-                                [ -f "${WORKSPACE}/MyApp.aab" ] && echo "  MyApp.aab: $(stat -f%z "${WORKSPACE}/MyApp.aab" 2>/dev/null || stat -c%s "${WORKSPACE}/MyApp.aab") bytes"
+                                [ -f "${WORKSPACE}/${INPUT_FILE}" ] && echo "  ${INPUT_FILE}: $(stat -f%z "${WORKSPACE}/${INPUT_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${INPUT_FILE}") bytes"
                                 [ -f "${WORKSPACE}/${CONFIG_FILE}" ] && echo "  ${CONFIG_FILE}: $(stat -f%z "${WORKSPACE}/${CONFIG_FILE}" 2>/dev/null || stat -c%s "${WORKSPACE}/${CONFIG_FILE}") bytes"
                                 echo ""
                                 echo "Output Files:"
@@ -158,6 +159,9 @@ pipeline {
                                 echo MASSTCLI Build Report
                                 echo ====================================================
                                 echo Job: %JOB_NAME% - Build: %BUILD_NUMBER%
+                                echo.
+                                echo Input Files:
+                                echo   %INPUT_FILE%
                                 echo.
                                 echo Output Files:
                                 for %%%%f in (%WORKSPACE%\\%ARTIFACTS_DIR%\\*) do (
