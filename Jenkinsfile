@@ -4,7 +4,7 @@ pipeline {
     parameters {
         booleanParam(
             name: 'IS_DEBUG',
-            defaultValue: true,
+            defaultValue: false,
             description: 'Check for debug build (simple command), uncheck for release build (with keystore signing)'
         )
     }
@@ -16,11 +16,11 @@ pipeline {
         MASST_ZIP = "MASSTCLI"
 //         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
-        INPUT_FILE = "demoApp.aab"
-        KEYSTORE_FILE = "Test/key"
-        KEYSTORE_PASSWORD = "dfdf"
+        INPUT_FILE = "signed-demoApp.aab"
+        KEYSTORE_FILE = "shruti_keystore.jks"
+        KEYSTORE_PASSWORD = "Bugsmirror@123"
         KEY_ALIAS = "key0"
-        KEY_PASSWORD = "dfsdfs"
+        KEY_PASSWORD = "Bugsmirror@123"
     }
 
     options {
