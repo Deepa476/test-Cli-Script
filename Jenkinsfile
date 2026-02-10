@@ -128,7 +128,7 @@ pipeline {
                                     echo ""
                                     echo "🔐 Using Apple identity for both DEBUG and RELEASE"
                                     echo ""
-                                    "\${MASST_EXE}" -input="\${INPUT_PATH}" -config="\${CONFIG_PATH}" -identity="%IDENTITY%" || exit 1
+                                    "\${MASST_EXE}" -input="\${INPUT_PATH}" -config="\${CONFIG_PATH}" -identity="!IDENTITY!" || exit 1
                                     ;;
                                 *)
                                     echo "=========================================="
@@ -195,7 +195,7 @@ pipeline {
                                     echo.
                                     echo 🔐 Using Apple identity for both DEBUG and RELEASE
                                     echo.
-                                    "!MASST_EXE!" -input="!INPUT_PATH!" -config="!CONFIG_PATH!" -identity="%IDENTITY%" || exit /b 1
+                                    "!MASST_EXE!" -input="!INPUT_PATH!" -config="!CONFIG_PATH!" -identity="!IDENTITY!" || exit /b 1
                                     endlocal
                                     exit /b 0
                                 ) else if /I "!EXT!"==".ipa" (
@@ -207,7 +207,7 @@ pipeline {
                                     echo.
                                     echo 🔐 Using Apple identity for both DEBUG and RELEASE
                                     echo.
-                                    "!MASST_EXE!" -input="!INPUT_PATH!" -config="!CONFIG_PATH!" -identity="%IDENTITY%" || exit /b 1
+                                    "!MASST_EXE!" -input="!INPUT_PATH!" -config="!CONFIG_PATH!" -identity="!IDENTITY!" || exit /b 1
                                     endlocal
                                     exit /b 0
                                 ) else (
