@@ -83,72 +83,72 @@ pipeline {
             }
         }
 
-        stage('Validate Android SDK') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh '''
-                            set -e
-
-                            echo "🔍 Validating Android SDK..."
-
-                            SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-
-                            if [ -z "$SDK_ROOT" ]; then
-                                echo "❌ ERROR: ANDROID_HOME or ANDROID_SDK_ROOT is not set"
-                                exit 1
-                            fi
-
-                            if [ ! -d "$SDK_ROOT" ]; then
-                                echo "❌ ERROR: Android SDK directory does not exist: $SDK_ROOT"
-                                exit 1
-                            fi
-
-                            if [ ! -f "$SDK_ROOT/platform-tools/adb" ]; then
-                                echo "❌ ERROR: adb not found. platform-tools missing"
-                                exit 1
-                            fi
-
-                            if [ ! -d "$SDK_ROOT/build-tools" ]; then
-                                echo "❌ ERROR: build-tools directory missing in Android SDK"
-                                exit 1
-                            fi
-
-                            echo "✅ Android SDK validated at $SDK_ROOT"
-                        '''
-                    } else {
-                        bat '''
-                            echo 🔍 Validating Android SDK...
-
-                            if "%ANDROID_HOME%"=="" if "%ANDROID_SDK_ROOT%"=="" (
-                                echo ❌ ERROR: ANDROID_HOME or ANDROID_SDK_ROOT is not set
-                                exit /b 1
-                            )
-
-                            set "SDK_ROOT=%ANDROID_HOME%"
-                            if "%SDK_ROOT%"=="" set "SDK_ROOT=%ANDROID_SDK_ROOT%"
-
-                            if not exist "%SDK_ROOT%" (
-                                echo ❌ ERROR: Android SDK directory does not exist: %SDK_ROOT%
-                                exit /b 1
-                            )
-
-                            if not exist "%SDK_ROOT%\\platform-tools\\adb.exe" (
-                                echo ❌ ERROR: adb not found. platform-tools missing
-                                exit /b 1
-                            )
-
-                            if not exist "%SDK_ROOT%\\build-tools" (
-                                echo ❌ ERROR: build-tools directory missing
-                                exit /b 1
-                            )
-
-                            echo ✅ Android SDK validated at %SDK_ROOT%
-                        '''
-                    }
-                }
-            }
-        }
+//         stage('Validate Android SDK') {
+//             steps {
+//                 script {
+//                     if (isUnix()) {
+//                         sh '''
+//                             set -e
+//
+//                             echo "🔍 Validating Android SDK..."
+//
+//                             SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+//
+//                             if [ -z "$SDK_ROOT" ]; then
+//                                 echo "❌ ERROR: ANDROID_HOME or ANDROID_SDK_ROOT is not set"
+//                                 exit 1
+//                             fi
+//
+//                             if [ ! -d "$SDK_ROOT" ]; then
+//                                 echo "❌ ERROR: Android SDK directory does not exist: $SDK_ROOT"
+//                                 exit 1
+//                             fi
+//
+//                             if [ ! -f "$SDK_ROOT/platform-tools/adb" ]; then
+//                                 echo "❌ ERROR: adb not found. platform-tools missing"
+//                                 exit 1
+//                             fi
+//
+//                             if [ ! -d "$SDK_ROOT/build-tools" ]; then
+//                                 echo "❌ ERROR: build-tools directory missing in Android SDK"
+//                                 exit 1
+//                             fi
+//
+//                             echo "✅ Android SDK validated at $SDK_ROOT"
+//                         '''
+//                     } else {
+//                         bat '''
+//                             echo 🔍 Validating Android SDK...
+//
+//                             if "%ANDROID_HOME%"=="" if "%ANDROID_SDK_ROOT%"=="" (
+//                                 echo ❌ ERROR: ANDROID_HOME or ANDROID_SDK_ROOT is not set
+//                                 exit /b 1
+//                             )
+//
+//                             set "SDK_ROOT=%ANDROID_HOME%"
+//                             if "%SDK_ROOT%"=="" set "SDK_ROOT=%ANDROID_SDK_ROOT%"
+//
+//                             if not exist "%SDK_ROOT%" (
+//                                 echo ❌ ERROR: Android SDK directory does not exist: %SDK_ROOT%
+//                                 exit /b 1
+//                             )
+//
+//                             if not exist "%SDK_ROOT%\\platform-tools\\adb.exe" (
+//                                 echo ❌ ERROR: adb not found. platform-tools missing
+//                                 exit /b 1
+//                             )
+//
+//                             if not exist "%SDK_ROOT%\\build-tools" (
+//                                 echo ❌ ERROR: build-tools directory missing
+//                                 exit /b 1
+//                             )
+//
+//                             echo ✅ Android SDK validated at %SDK_ROOT%
+//                         '''
+//                     }
+//                 }
+//             }
+//         }
 
 
         stage('Validate & Execute') {
