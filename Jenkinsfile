@@ -208,6 +208,51 @@ pipeline {
                 archiveArtifacts artifacts: 'output/**', allowEmptyArchive: false, fingerprint: true, onlyIfSuccessful: true
             }
         }
+
+        stage('Cleanup MASSTCLI') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            set -e
+                            echo "Cleaning up MASSTCLI..."
+
+                            # Delete extracted directory
+                            if [ -d "${WORKSPACE}/${MASST_DIR}" ]; then
+                                echo "Deleting ${MASST_DIR}..."
+                                rm -rf "${WORKSPACE}/${MASST_DIR}"
+                            fi
+
+                            # Delete zip file
+                            if [ -f "${WORKSPACE}/${MASST_ZIP}.zip" ]; then
+                                echo "Deleting ${MASST_ZIP}.zip..."
+                                rm -f "${WORKSPACE}/${MASST_ZIP}.zip"
+                            fi
+
+                            echo "✅ Cleanup completed - MASSTCLI zip and extracted directory removed"
+                        '''
+                    } else {
+                        bat '''
+                            echo Cleaning up MASSTCLI...
+
+                            REM Delete extracted directory
+                            if exist "%WORKSPACE%\\%MASST_DIR%" (
+                                echo Deleting %MASST_DIR%...
+                                rmdir /s /q "%WORKSPACE%\\%MASST_DIR%"
+                            )
+
+                            REM Delete zip file
+                            if exist "%WORKSPACE%\\%MASST_ZIP%.zip" (
+                                echo Deleting %MASST_ZIP%.zip...
+                                del /q "%WORKSPACE%\\%MASST_ZIP%.zip"
+                            )
+
+                            echo ✅ Cleanup completed - MASSTCLI zip and extracted directory removed
+                        '''
+                    }
+                }
+            }
+        }
     }
 
     post {
