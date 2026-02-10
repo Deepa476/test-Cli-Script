@@ -86,39 +86,66 @@ pipeline {
         stage('Validate & Execute') {
             steps {
                 script {
-                        if (isUnix()) {
-                            sh '''
-                                set -e
+                    if (isUnix()) {
+                        sh '''
+                            set -e
 
-                                # validate files
-                                [ -f "${WORKSPACE}/${INPUT_FILE}" ] || { echo "ERROR: ${INPUT_FILE} not found"; exit 1; }
-                                [ -f "${WORKSPACE}/${CONFIG_FILE}" ] || { echo "ERROR: ${CONFIG_FILE} not found"; exit 1; }
+                            # Validate files
+                            [ -f "${WORKSPACE}/${INPUT_FILE}" ] || { echo "ERROR: ${INPUT_FILE} not found"; exit 1; }
+                            [ -f "${WORKSPACE}/${CONFIG_FILE}" ] || { echo "ERROR: ${CONFIG_FILE} not found"; exit 1; }
 
-                                # ensure output dir exists
-                                mkdir -p "${WORKSPACE}/${ARTIFACTS_DIR}"
+                            # Ensure output dir exists
+                            mkdir -p "${WORKSPACE}/${ARTIFACTS_DIR}"
 
-                                # find MASSTCLI executable (avoid escaped parens)
-                                MASST_EXE=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" -print -quit)
-                                [ -x "${MASST_EXE}" ] || { echo "ERROR: MASSTCLI executable not found or not executable"; exit 1; }
+                            # Find MASSTCLI executable
+                            MASST_EXE=$(find "${MASST_DIR}" -type f -name "MASSTCLI*" -print -quit)
+                            [ -x "${MASST_EXE}" ] || { echo "ERROR: MASSTCLI executable not found or not executable"; exit 1; }
 
-                                echo "Executing MASSTCLI..."
-                                # correct flags: do NOT use -output (not supported)
-                                "${MASST_EXE}" -input="${WORKSPACE}/${INPUT_FILE}" -config="${WORKSPACE}/${CONFIG_FILE}" || exit 1
-                                echo "✅ MASSTCLI completed successfully"
-                            '''
-                        } else {
+                            # Construct full paths (same as CLI execution)
+                            INPUT_PATH="${WORKSPACE}/${INPUT_FILE}"
+                            CONFIG_PATH="${WORKSPACE}/${CONFIG_FILE}"
+
+                            echo "Executing MASSTCLI with parameters:"
+                            echo "  Input: ${INPUT_PATH}"
+                            echo "  Config: ${CONFIG_PATH}"
+                            echo ""
+
+                            # Execute with EXACT same format as CLI: -input=/path -config=/path
+                            ${MASST_EXE} -input=${INPUT_PATH} -config=${CONFIG_PATH} || exit 1
+                            echo "✅ MASSTCLI completed successfully"
+                        '''
+                    } else {
                         bat '''
-                            if not exist "%WORKSPACE%\\%INPUT_FILE%" exit /b 1
-                            if not exist "%WORKSPACE%\\%CONFIG_FILE%" exit /b 1
+                            setlocal enabledelayedexpansion
+
+                            if not exist "%WORKSPACE%\\%INPUT_FILE%" (
+                                echo ERROR: %INPUT_FILE% not found
+                                exit /b 1
+                            )
+                            if not exist "%WORKSPACE%\\%CONFIG_FILE%" (
+                                echo ERROR: %CONFIG_FILE% not found
+                                exit /b 1
+                            )
 
                             if not exist "%WORKSPACE%\\%ARTIFACTS_DIR%" mkdir "%WORKSPACE%\\%ARTIFACTS_DIR%"
 
                             for /r "%MASST_DIR%" %%%%f in (MASSTCLI*.exe) do (
-                                echo Executing MASSTCLI...
-                                "%%%%f" -input "%WORKSPACE%\\%INPUT_FILE%" -config "%WORKSPACE%\\%CONFIG_FILE%" || exit /b 1
+                                set "MASST_EXE=%%%%f"
+                                set "INPUT_PATH=%WORKSPACE%\\%INPUT_FILE%"
+                                set "CONFIG_PATH=%WORKSPACE%\\%CONFIG_FILE%"
+
+                                echo Executing MASSTCLI with parameters:
+                                echo   Input: !INPUT_PATH!
+                                echo   Config: !CONFIG_PATH!
+                                echo.
+
+                                REM Execute with EXACT same format as CLI: -input=path -config=path
+                                "!MASST_EXE!" -input=!INPUT_PATH! -config=!CONFIG_PATH! || exit /b 1
                                 echo ✅ MASSTCLI completed successfully
+                                endlocal
                                 exit /b 0
                             )
+                            echo ERROR: MASSTCLI executable not found
                             exit /b 1
                         '''
                     }
