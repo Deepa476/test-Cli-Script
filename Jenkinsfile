@@ -16,11 +16,11 @@ pipeline {
         MASST_ZIP = "MASSTCLI"
 //         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
         DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
-        INPUT_FILE = "signed-demoApp.aab"
-        KEYSTORE_FILE = "shruti-key.jks"
-        KEYSTORE_PASSWORD = "Bugsmirror@123"
+        INPUT_FILE = "app-release.aab"
+        KEYSTORE_FILE = "Bluebeetle.jks"
+        KEYSTORE_PASSWORD = "bugs@1234"
         KEY_ALIAS = "key0"
-        KEY_PASSWORD = "Bugsmirror@123"
+        KEY_PASSWORD = "bugs@1234"
     }
 
     options {
