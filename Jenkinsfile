@@ -10,13 +10,9 @@ pipeline {
     }
 
     environment {
-        // ========================================
-        // USER CONFIGURATION - Edit these values
-        // ========================================
-
         // Input Files (same for all platforms)
         INPUT_FILE = "app-release.aab"
-        CONFIG_FILE = "bluebeetle_config.bm"
+        CONFIG_FILE = "bblue_b_config.bm"
 
         // Download URLs (platform-specific binaries)
         MACOS_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
@@ -35,9 +31,7 @@ pipeline {
         // Apple Identity (for iOS builds)
         IDENTITY = "Apple Distribution: Bugsmirror Research private limited (BPKUYCFJ74)"
 
-        // ========================================
-        // DO NOT EDIT BELOW THIS LINE
-        // ========================================
+
         MASST_DIR = "MASSTCLI_EXTRACTED"
         ARTIFACTS_DIR = "output"
         MASST_ZIP = "MASSTCLI"
@@ -79,17 +73,6 @@ pipeline {
                         env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Windows/MASSTCLI-v1.1.0-windows-amd64.zip"
                     }
 
-                    echo """
-========================================
-Build Configuration (Auto-Detected)
-========================================
-Platform: ${env.DETECTED_PLATFORM}
-Build Mode: ${params.IS_DEBUG ? 'DEBUG' : 'RELEASE'}
-Download URL: ${env.DOWNLOAD_URL}
-Input File: ${env.INPUT_FILE}
-Config File: ${env.CONFIG_FILE}
-========================================
-                    """
                 }
             }
         }
