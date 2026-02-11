@@ -7,11 +7,6 @@ pipeline {
             defaultValue: false,
             description: 'Check for debug build (simple command), uncheck for release build (with keystore signing)'
         )
-        choice(
-            name: 'PLATFORM',
-            choices: ['Linux', 'MacOS'],
-            description: 'Select the platform to build for'
-        )
     }
 
     environment {
@@ -40,22 +35,46 @@ pipeline {
         stage('Determine Configuration') {
             steps {
                 script {
-                    // Set platform-specific variables
-                    if (params.PLATFORM == 'MacOS') {
-                        env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
-                        env.INPUT_FILE = "meal_metrics.ipa"
-                        env.CONFIG_FILE = "config.bm"
+                    if (isUnix()) {
+                        sh '''#!/bin/bash
+                            set -e
+
+                            # Detect platform
+                            if [[ "$(uname)" == "Darwin" ]]; then
+                                echo "PLATFORM=MacOS" > platform.env
+                            else
+                                echo "PLATFORM=Linux" > platform.env
+                            fi
+                        '''
+
+                        // Read platform from file
+                        def platformEnv = readFile('platform.env').trim()
+                        def detectedPlatform = platformEnv.split('=')[1]
+                        env.DETECTED_PLATFORM = detectedPlatform
+
+                        // Set platform-specific variables
+                        if (detectedPlatform == 'MacOS') {
+                            env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
+                            env.INPUT_FILE = "meal_metrics.ipa"
+                            env.CONFIG_FILE = "config.bm"
+                        } else {
+                            env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
+                            env.INPUT_FILE = "app-release.aab"
+                            env.CONFIG_FILE = "bluebeetle_config.bm"
+                        }
                     } else {
-                        env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
+                        // Windows platform
+                        env.DETECTED_PLATFORM = "Windows"
+                        env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Windows/MASSTCLI-v1.1.0-windows-amd64.zip"
                         env.INPUT_FILE = "app-release.aab"
                         env.CONFIG_FILE = "bluebeetle_config.bm"
                     }
 
                     echo """
 ========================================
-Build Configuration
+Build Configuration (Auto-Detected)
 ========================================
-Platform: ${params.PLATFORM}
+Platform: ${env.DETECTED_PLATFORM}
 Build Mode: ${params.IS_DEBUG ? 'DEBUG' : 'RELEASE'}
 Download URL: ${env.DOWNLOAD_URL}
 Input File: ${env.INPUT_FILE}
@@ -75,17 +94,17 @@ Config File: ${env.CONFIG_FILE}
                             set -e
 
                             # Set Android environment if Linux
-                            if [ "${PLATFORM}" = "Linux" ]; then
+                            if [ "${DETECTED_PLATFORM}" = "Linux" ]; then
                                 export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
                             fi
 
                             # Download MASSTCLI if not present
                             if [ ! -f "${WORKSPACE}/${MASST_ZIP}.zip" ]; then
-                                echo "Downloading MASSTCLI for ${PLATFORM}..."
+                                echo "Downloading MASSTCLI for ${DETECTED_PLATFORM}..."
                                 curl -L --progress-bar -o "${WORKSPACE}/${MASST_ZIP}.zip" "${DOWNLOAD_URL}" || \
                                 wget -O "${WORKSPACE}/${MASST_ZIP}.zip" "${DOWNLOAD_URL}" || exit 1
                             fi
-                            echo "✅ MASSTCLI.zip ready for ${PLATFORM}"
+                            echo "✅ MASSTCLI.zip ready for ${DETECTED_PLATFORM}"
                         '''
                     } else {
                         bat '''
@@ -120,7 +139,7 @@ Config File: ${env.CONFIG_FILE}
                                 fi
 
                                 chmod +x "$(find "${MASST_DIR}" -type f -name "MASSTCLI*" | head -1)"
-                                echo "✅ MASSTCLI extracted and verified for ${PLATFORM}"
+                                echo "✅ MASSTCLI extracted and verified for ${DETECTED_PLATFORM}"
                             '''
                         } else {
                             bat '''
@@ -148,7 +167,7 @@ Config File: ${env.CONFIG_FILE}
                             set -e
 
                             # Set Android environment if Linux
-                            if [ "${params.PLATFORM}" = "Linux" ]; then
+                            if [ "${env.DETECTED_PLATFORM}" = "Linux" ]; then
                                 export PATH=\$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
                             fi
 
@@ -169,7 +188,7 @@ Config File: ${env.CONFIG_FILE}
                                     echo "=========================================="
                                     echo "MASSTCLI Execution Configuration (iOS/IDENTITY)"
                                     echo "=========================================="
-                                    echo "  Platform: ${params.PLATFORM}"
+                                    echo "  Platform: ${env.DETECTED_PLATFORM}"
                                     echo "  Input: \${INPUT_PATH}"
                                     echo "  Config: \${CONFIG_PATH}"
                                     echo ""
@@ -181,7 +200,7 @@ Config File: ${env.CONFIG_FILE}
                                     echo "=========================================="
                                     echo "MASSTCLI Execution Configuration (Android)"
                                     echo "=========================================="
-                                    echo "  Platform: ${params.PLATFORM}"
+                                    echo "  Platform: ${env.DETECTED_PLATFORM}"
                                     echo "  Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}"
                                     echo "  Input: \${INPUT_PATH}"
                                     echo "  Config: \${CONFIG_PATH}"
@@ -242,7 +261,7 @@ Config File: ${env.CONFIG_FILE}
                                     echo ==========================================
                                     echo MASSTCLI Execution Configuration (iOS/IDENTITY)
                                     echo ==========================================
-                                    echo   Platform: %PLATFORM%
+                                    echo   Platform: %DETECTED_PLATFORM%
                                     echo   Input: !INPUT_PATH!
                                     echo   Config: !CONFIG_PATH!
                                     echo.
@@ -255,7 +274,7 @@ Config File: ${env.CONFIG_FILE}
                                     echo ==========================================
                                     echo MASSTCLI Execution Configuration (iOS/IDENTITY)
                                     echo ==========================================
-                                    echo   Platform: %PLATFORM%
+                                    echo   Platform: %DETECTED_PLATFORM%
                                     echo   Input: !INPUT_PATH!
                                     echo   Config: !CONFIG_PATH!
                                     echo.
@@ -268,7 +287,7 @@ Config File: ${env.CONFIG_FILE}
                                     echo ==========================================
                                     echo MASSTCLI Execution Configuration (Android)
                                     echo ==========================================
-                                    echo   Platform: %PLATFORM%
+                                    echo   Platform: %DETECTED_PLATFORM%
                                     echo   Build Mode: ${isDebug ? 'DEBUG' : 'RELEASE'}
                                     echo   Input: !INPUT_PATH!
                                     echo   Config: !CONFIG_PATH!
@@ -319,7 +338,7 @@ Config File: ${env.CONFIG_FILE}
                 script {
                     if (isUnix()) {
                         sh '''#!/bin/bash
-                            echo "=== Checking workspace contents for ${PLATFORM} ==="
+                            echo "=== Checking workspace contents for ${DETECTED_PLATFORM} ==="
                             ls -la "${WORKSPACE}"
                             echo ""
                             echo "=== Checking for output directory ==="
@@ -362,7 +381,7 @@ Config File: ${env.CONFIG_FILE}
                             {
                                 echo "MASSTCLI Build Report"
                                 echo "===================================================="
-                                echo "Platform: ${params.PLATFORM}"
+                                echo "Platform: ${env.DETECTED_PLATFORM}"
                                 echo "Job: ${JOB_NAME} | Build: ${BUILD_NUMBER}"
                                 echo "Build Mode: ${buildMode}"
                                 echo "Timestamp: \$(date '+%Y-%m-%d %H:%M:%S')"
@@ -398,7 +417,7 @@ Config File: ${env.CONFIG_FILE}
                             (
                                 echo MASSTCLI Build Report
                                 echo ====================================================
-                                echo Platform: %PLATFORM%
+                                echo Platform: %DETECTED_PLATFORM%
                                 echo Job: %JOB_NAME% - Build: %BUILD_NUMBER%
                                 echo Build Mode: ${buildMode}
                                 echo Timestamp: %DATE% %TIME%
@@ -475,7 +494,7 @@ Config File: ${env.CONFIG_FILE}
         success {
             script {
                 def buildMode = params.IS_DEBUG ? 'DEBUG' : 'RELEASE'
-                echo "✅ Pipeline completed successfully - ${params.PLATFORM} ${buildMode} build"
+                echo "✅ Pipeline completed successfully - ${env.DETECTED_PLATFORM} ${buildMode} build"
             }
         }
         failure {
