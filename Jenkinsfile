@@ -55,8 +55,8 @@ pipeline {
                         // Set platform-specific variables
                         if (detectedPlatform == 'MacOS') {
                             env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
-                            env.INPUT_FILE = "meal_metrics.ipa"
-                            env.CONFIG_FILE = "config.bm"
+                            env.INPUT_FILE = "app-release.aab"
+                            env.CONFIG_FILE = "blue_b_config.bm"
                         } else {
                             env.DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
                             env.INPUT_FILE = "app-release.aab"
