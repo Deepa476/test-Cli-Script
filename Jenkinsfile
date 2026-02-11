@@ -12,7 +12,7 @@ pipeline {
     environment {
         // Input Files (same for all platforms)
         INPUT_FILE = "app-release.aab"
-        CONFIG_FILE = "bblue_b_config.bm"
+        CONFIG_FILE = "blue_b_config.bm"
 
         // Download URLs (platform-specific binaries)
         MACOS_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
