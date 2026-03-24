@@ -11,7 +11,7 @@ pipeline {
         IDENTITY = "Apple Distribution: Bugsmirror Research private limited (BPKUYCFJ74)"
         MASST_DIR = "MASSTCLI_EXTRACTED"; ARTIFACTS_DIR = "output"; MASST_ZIP = "MASSTCLI"
     }
-    options { timestamps(); buildDiscarder(logRotator(numToKeepStr: '10'))disableConcurrentBuilds() }
+    options { timestamps(); buildDiscarder(logRotator(numToKeepStr: '10')); disableConcurrentBuilds() }
     stages {
         stage('Clean Workspace') {
             steps {
