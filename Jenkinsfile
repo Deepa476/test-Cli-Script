@@ -6,7 +6,7 @@ pipeline {
         INPUT_FILE = "app-release.aab"; CONFIG_FILE = "bluebeetle_config.bm"
         MACOS_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
         LINUX_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
-        ANDROID_HOME = "/home/snehal_mane/Android/Sdk"
+        ANDROID_HOME = "/Users/deepak/Library/Android/sdk"
         KEYSTORE_FILE = "Bluebeetle.jks"; KEYSTORE_PASSWORD = "bugs@1234"; KEY_ALIAS = "key0"; KEY_PASSWORD = "bugs@1234"
         IDENTITY = "Apple Distribution: Bugsmirror Research private limited (BPKUYCFJ74)"
         MASST_DIR = "MASSTCLI_EXTRACTED"; ARTIFACTS_DIR = "output"; MASST_ZIP = "MASSTCLI"
