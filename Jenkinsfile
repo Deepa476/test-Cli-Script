@@ -12,7 +12,9 @@ pipeline {
         MASST_DIR = "MASSTCLI_EXTRACTED"; ARTIFACTS_DIR = "output"; MASST_ZIP = "MASSTCLI"
     }
 
-    options {timestamps()buildDiscarder(logRotator(numToKeepStr: '10'))
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()   // 🔥 IMPORTANT FIX
     }
 
