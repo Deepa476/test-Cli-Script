@@ -7,7 +7,7 @@ pipeline {
         CONFIG_FILE = "bluebeetle_config.bm"
         MACOS_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
         LINUX_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
-        // ANDROID_HOME will be set dynamically in Setup stage
+        // ANDROID_HOME will be set dynamically
         KEYSTORE_FILE = "Bluebeetle.jks"
         KEYSTORE_PASSWORD = "bugs@1234"
         KEY_ALIAS = "key0"
@@ -20,35 +20,36 @@ pipeline {
     options { timestamps(); buildDiscarder(logRotator(numToKeepStr: '10')); disableConcurrentBuilds() }
     stages {
         stage('Clean Workspace') {
-            steps {
-                cleanWs()
-            }
+            steps { cleanWs() }
         }
         stage('Setup') {
             steps {
                 checkout scm
                 script {
                     if (isUnix()) {
-                        // Detect Android SDK path dynamically
+                        // ---------- Dynamic ANDROID_HOME detection ----------
                         def detectedAndroidHome = null
-                        // 1) Check if ANDROID_HOME is already set in environment
+                        // 1) Use existing environment variable if set
                         if (env.ANDROID_HOME) {
                             detectedAndroidHome = env.ANDROID_HOME
                             echo "Using existing ANDROID_HOME: ${detectedAndroidHome}"
                         } else {
-                            // 2) Try to locate via 'which adb'
+                            // 2) Try to locate via 'which adb' (no Groovy interpolation inside single quotes)
                             def adbPath = sh(script: 'which adb || true', returnStdout: true).trim()
                             if (adbPath) {
-                                // adb is typically in $ANDROID_HOME/platform-tools/adb
-                                detectedAndroidHome = sh(script: "dirname $(dirname ${adbPath})", returnStdout: true).trim()
+                                // adb is in $ANDROID_HOME/platform-tools/adb
+                                // Use single quotes for shell command to avoid Groovy dollar-sign issues
+                                def adbDir = sh(script: "dirname '$adbPath'", returnStdout: true).trim()
+                                detectedAndroidHome = sh(script: "dirname '$adbDir'", returnStdout: true).trim()
                                 echo "Detected ANDROID_HOME from adb: ${detectedAndroidHome}"
                             } else {
                                 // 3) Check common installation paths
+                                def userHome = sh(script: 'echo $HOME', returnStdout: true).trim()
                                 def commonPaths = [
-                                    "${env.HOME}/Android/Sdk",
+                                    "${userHome}/Android/Sdk",
                                     "/usr/local/android-sdk",
                                     "/opt/android-sdk",
-                                    "/Library/Android/sdk" // macOS common location
+                                    "/Library/Android/sdk"
                                 ]
                                 for (path in commonPaths) {
                                     if (fileExists("${path}/platform-tools/adb") || fileExists("${path}/cmdline-tools/latest/bin/sdkmanager")) {
@@ -63,14 +64,11 @@ pipeline {
                         if (!detectedAndroidHome) {
                             error "Android SDK not found. Please set ANDROID_HOME or ensure adb is in PATH."
                         }
-
                         env.ANDROID_HOME = detectedAndroidHome
                         echo "Final ANDROID_HOME = ${env.ANDROID_HOME}"
 
                         // Platform detection (MacOS/Linux)
                         sh(script: '''#!/bin/bash
-                            set -e
-                            export PATH=/bin:/usr/bin:/usr/local/bin:$PATH
                             if [[ "$(uname)" == "Darwin" ]]; then
                                 echo "MacOS" > platform.txt
                             else
@@ -80,7 +78,8 @@ pipeline {
                         env.DETECTED_PLATFORM = readFile('platform.txt').trim()
                         env.DOWNLOAD_URL = env.DETECTED_PLATFORM == 'MacOS' ? env.MACOS_DOWNLOAD_URL : env.LINUX_DOWNLOAD_URL
 
-                        sh(script: '''#!/bin/bash
+                        // Download and extract MASST CLI (using single quotes for safety)
+                        sh(script: '''
                             set -e
                             export PATH=/bin:/usr/bin:/usr/local/bin:$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
                             echo "Downloading MASST CLI..."
@@ -102,7 +101,8 @@ pipeline {
             steps {
                 script {
                     if (isUnix()) {
-                        sh(script: """#!/bin/bash
+                        sh(script: """
+                            #!/bin/bash
                             set -e
                             export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
                             echo "PATH = \$PATH"
@@ -143,7 +143,6 @@ pipeline {
                 }
             }
         }
-
         stage('Archive') {
             steps {
                 script {
