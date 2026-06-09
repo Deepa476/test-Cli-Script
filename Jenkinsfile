@@ -3,7 +3,7 @@ pipeline {
     parameters { booleanParam(name: 'IS_DEBUG', defaultValue: false, description: 'Debug or Release build') }
     environment {
         PATH = "/bin:/usr/bin:/usr/local/bin:${env.PATH}"
-        INPUT_FILE = "meal_metrics.ipa"; CONFIG_FILE = "bluebeetle_config.bm"
+        INPUT_FILE = "app-release.aab"; CONFIG_FILE = "bluebeetle_config.bm"
         MACOS_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/MacOS/MASSTCLI-v1.1.0-darwin-arm64.zip"
         LINUX_DOWNLOAD_URL = "https://storage.googleapis.com/masst-assets/Defender-Binary-Integrator/1.0.0/Linux/MASSTCLI-v1.1.0-linux-amd64.zip"
         ANDROID_HOME = "/Users/snehal/Library/Android/sdk"
