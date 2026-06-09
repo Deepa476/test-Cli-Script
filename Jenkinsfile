@@ -49,69 +49,62 @@ pipeline {
                 checkout scm
 
                 script {
-                    if (isUnix()) {
 
-                        sh '''#!/bin/bash
-                            set -e
-                            export PATH=/bin:/usr/bin:/usr/local/bin:$PATH
+                    env.DETECTED_PLATFORM =
+                            sh(
+                                    script: '[[ "$(uname)" == "Darwin" ]] && echo MacOS || echo Linux',
+                                    returnStdout: true
+                            ).trim()
 
-                            # Detect platform
-                            if [[ "$(uname)" == "Darwin" ]]; then
-                                echo "MacOS" > platform.txt
-                            else
-                                echo "Linux" > platform.txt
-                            fi
+                    env.DOWNLOAD_URL =
+                            env.DETECTED_PLATFORM == 'MacOS'
+                                    ? env.MACOS_DOWNLOAD_URL
+                                    : env.LINUX_DOWNLOAD_URL
 
-                            # Detect Android SDK
-                            if [ -n "$ANDROID_HOME" ]; then
-                                echo "$ANDROID_HOME" > android_home.txt
-                            elif [ -n "$ANDROID_SDK_ROOT" ]; then
-                                echo "$ANDROID_SDK_ROOT" > android_home.txt
-                            elif [ -d "$HOME/Library/Android/sdk" ]; then
-                                echo "$HOME/Library/Android/sdk" > android_home.txt
-                            elif [ -d "$HOME/Android/Sdk" ]; then
-                                echo "$HOME/Android/Sdk" > android_home.txt
-                            elif [ -d "$HOME/Android/sdk" ]; then
-                                echo "$HOME/Android/sdk" > android_home.txt
-                            else
-                                echo "Android SDK not found"
-                                exit 1
-                            fi
-                        '''
+                    env.ANDROID_HOME =
+                            sh(
+                                    script: '''
+                                    if [ -n "$ANDROID_HOME" ]; then
+                                        echo "$ANDROID_HOME"
+                                    elif [ -n "$ANDROID_SDK_ROOT" ]; then
+                                        echo "$ANDROID_SDK_ROOT"
+                                    elif [ -d "$HOME/Library/Android/sdk" ]; then
+                                        echo "$HOME/Library/Android/sdk"
+                                    elif [ -d "$HOME/Android/Sdk" ]; then
+                                        echo "$HOME/Android/Sdk"
+                                    elif [ -d "$HOME/Android/sdk" ]; then
+                                        echo "$HOME/Android/sdk"
+                                    else
+                                        exit 1
+                                    fi
+                                    ''',
+                                    returnStdout: true
+                            ).trim()
 
-                        env.DETECTED_PLATFORM = readFile('platform.txt').trim()
-                        env.ANDROID_HOME = readFile('android_home.txt').trim()
+                    echo "Platform: ${env.DETECTED_PLATFORM}"
+                    echo "Android SDK: ${env.ANDROID_HOME}"
 
-                        env.DOWNLOAD_URL =
-                                env.DETECTED_PLATFORM == 'MacOS'
-                                        ? env.MACOS_DOWNLOAD_URL
-                                        : env.LINUX_DOWNLOAD_URL
+                    sh """
+                    #!/bin/bash -e
 
-                        sh '''#!/bin/bash
-                            set -e
+                    export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH:${env.ANDROID_HOME}/cmdline-tools/latest/bin:${env.ANDROID_HOME}/platform-tools
 
-                            export PATH=/bin:/usr/bin:/usr/local/bin:$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+                    echo "Downloading MASST CLI"
 
-                            echo "Android SDK: $ANDROID_HOME"
-                            echo "Downloading MASST CLI..."
+                    rm -f ${MASST_ZIP}.zip
 
-                            if [ ! -f "${MASST_ZIP}.zip" ]; then
-                                curl -L -o "${MASST_ZIP}.zip" "${DOWNLOAD_URL}" \
-                                || wget -O "${MASST_ZIP}.zip" "${DOWNLOAD_URL}"
-                            fi
+                    curl -L -o ${MASST_ZIP}.zip "${env.DOWNLOAD_URL}"
 
-                            echo "Extracting..."
+                    rm -rf ${MASST_DIR}
+                    mkdir -p ${MASST_DIR}
 
-                            rm -rf "${MASST_DIR}"
-                            mkdir -p "${MASST_DIR}"
+                    unzip -q ${MASST_ZIP}.zip -d ${MASST_DIR}
 
-                            unzip -q "${MASST_ZIP}.zip" -d "${MASST_DIR}"
+                    chmod +x \$(find ${MASST_DIR} -type f -name "MASSTCLI*" || true)
 
-                            chmod +x $(find "${MASST_DIR}" -type f -name "MASSTCLI*" || true)
-
-                            echo "Setup completed"
-                        '''
-                    }
+                    echo "Contents:"
+                    find ${MASST_DIR}
+                    """
                 }
             }
         }
@@ -119,96 +112,100 @@ pipeline {
         stage('Execute') {
             steps {
                 script {
-                    if (isUnix()) {
 
-                        sh """#!/bin/bash
-                            set -e
+                    def BUILD_MODE = params.IS_DEBUG ? "DEBUG" : "RELEASE"
 
-                            export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+                    sh """
+                    #!/bin/bash -e
 
-                            echo "PATH=\$PATH"
+                    export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH:${env.ANDROID_HOME}/cmdline-tools/latest/bin:${env.ANDROID_HOME}/platform-tools
 
-                            [ -f "${INPUT_FILE}" ] || {
-                                echo "ERROR: ${INPUT_FILE} not found"
-                                exit 1
-                            }
+                    echo "Build mode: ${BUILD_MODE}"
 
-                            [ -f "${CONFIG_FILE}" ] || {
-                                echo "ERROR: ${CONFIG_FILE} not found"
-                                exit 1
-                            }
-
-                            MASST_EXE=\$(find "${MASST_DIR}" -type f -name "MASSTCLI*" | head -n 1)
-
-                            if [ -z "\$MASST_EXE" ]; then
-                                echo "ERROR: MASST CLI not found"
-                                exit 1
-                            fi
-
-                            echo "Using MASST CLI: \$MASST_EXE"
-
-                            EXT=\$(echo "${INPUT_FILE}" | awk -F. '{print tolower(\$NF)}')
-
-                            case "\$EXT" in
-                                xcarchive|ipa)
-                                    "\$MASST_EXE" \
-                                    -input="${INPUT_FILE}" \
-                                    -config="${CONFIG_FILE}" \
-                                    -identity="${IDENTITY}"
-                                    ;;
-
-                                aab|apk)
-                                    if [ "${params.IS_DEBUG}" = "true" ]; then
-
-                                        "\$MASST_EXE" \
-                                        -input="${INPUT_FILE}" \
-                                        -config="${CONFIG_FILE}"
-
-                                    else
-
-                                        "\$MASST_EXE" \
-                                        -input="${INPUT_FILE}" \
-                                        -config="${CONFIG_FILE}" \
-                                        -keystore="${KEYSTORE_FILE}" \
-                                        -storePassword="${KEYSTORE_PASSWORD}" \
-                                        -alias="${KEY_ALIAS}" \
-                                        -keyPassword="${KEY_PASSWORD}" \
-                                        -v=true \
-                                        -apk
-
-                                    fi
-                                    ;;
-
-                                *)
-                                    echo "ERROR: Unsupported file type"
-                                    exit 1
-                                    ;;
-                            esac
-
-                            echo "Execution completed"
-                        """
+                    [ -f "${INPUT_FILE}" ] || {
+                        echo "${INPUT_FILE} not found"
+                        exit 1
                     }
+
+                    [ -f "${CONFIG_FILE}" ] || {
+                        echo "${CONFIG_FILE} not found"
+                        exit 1
+                    }
+
+                    MASST_EXE=\$(find "${MASST_DIR}" -type f | grep MASSTCLI | head -n1)
+
+                    echo "Using binary: \$MASST_EXE"
+
+                    [ -n "\$MASST_EXE" ] || {
+                        echo "MASST CLI not found"
+                        exit 1
+                    }
+
+                    EXT=\$(echo "${INPUT_FILE}" | awk -F. '{print tolower(\$NF)}')
+
+                    case "\$EXT" in
+
+                        xcarchive|ipa)
+
+                            "\$MASST_EXE" \
+                            -input="${INPUT_FILE}" \
+                            -config="${CONFIG_FILE}" \
+                            -identity="${IDENTITY}"
+                            ;;
+
+                        aab|apk)
+
+                            if [ "${params.IS_DEBUG}" = "true" ]; then
+
+                                "\$MASST_EXE" \
+                                -input="${INPUT_FILE}" \
+                                -config="${CONFIG_FILE}"
+
+                            else
+
+                                "\$MASST_EXE" \
+                                -input="${INPUT_FILE}" \
+                                -config="${CONFIG_FILE}" \
+                                -keystore="${KEYSTORE_FILE}" \
+                                -storePassword="${KEYSTORE_PASSWORD}" \
+                                -alias="${KEY_ALIAS}" \
+                                -keyPassword="${KEY_PASSWORD}" \
+                                -v=true \
+                                -apk
+
+                            fi
+                            ;;
+
+                        *)
+
+                            echo "Unsupported file type"
+                            exit 1
+                            ;;
+                    esac
+
+                    echo "Execution completed"
+                    """
                 }
             }
         }
 
         stage('Archive') {
             steps {
+
                 script {
-                    if (isUnix()) {
 
-                        sh """
-                            #!/bin/bash
-                            set -e
+                    def BUILD_MODE = params.IS_DEBUG ? "DEBUG" : "RELEASE"
 
-                            mkdir -p "${ARTIFACTS_DIR}"
+                    sh """
+                    #!/bin/bash -e
 
-                            echo "Build: ${env.DETECTED_PLATFORM} | ${params.IS_DEBUG ? 'DEBUG' : 'RELEASE'} | \$(date)" \
-                            > "${ARTIFACTS_DIR}/report.txt"
+                    mkdir -p "${ARTIFACTS_DIR}"
 
-                            rm -f "${MASST_ZIP}.zip"
-                        """
-                    }
+                    echo "Build: ${env.DETECTED_PLATFORM} | ${BUILD_MODE} | \$(date)" \
+                    > "${ARTIFACTS_DIR}/report.txt"
+
+                    rm -f ${MASST_ZIP}.zip
+                    """
                 }
 
                 archiveArtifacts artifacts: 'output/**', allowEmptyArchive: true
@@ -222,7 +219,11 @@ pipeline {
         }
 
         failure {
-            echo 'Failed'
+            echo "FAILED"
+        }
+
+        always {
+            cleanWs(deleteDirs: true)
         }
     }
 }
